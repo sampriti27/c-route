@@ -1,0 +1,11 @@
+{
+  "profile_id": "aisha_demo_v1",
+  "name": "Aisha",
+  "age": 21,
+  "education": "B.Com graduate",
+  "current_skills": ["excel", "finance_basics", "communication", "powerpoint"],
+  "experience_years": 0,
+  "target_direction": "analytics",
+  "candidate_destinations": ["business_analyst", "financial_analyst", "data_analyst"],
+  "note": "Synthetic demo profile — repeatable testing"
+}
