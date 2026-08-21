@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>C.Route — System Architecture</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: #0a0e1a;
+    color: #e2e8f0;
+    min-height: 100vh;
+    padding: 32px 24px;
+  }
+
+  /* ── Header ── */
+  .header {
+    text-align: center;
+    margin-bottom: 36px;
+  }
+  .header .logo {
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    color: #fff;
+  }
+  .header .logo span { color: #4ade80; }
+  .header .sub {
+    font-size: 13px;
+    color: #64748b;
+    margin-top: 4px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  .header .tagline {
+    font-size: 15px;
+    color: #94a3b8;
+    margin-top: 8px;
+    font-style: italic;
+  }
+
+  /* ── Principle banner ── */
+  .principle {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 32px;
+  }
+  .principle-badge {
+    background: linear-gradient(135deg, #1e3a5f, #1a2d4a);
+    border: 1px solid #3b82f6;
+    border-radius: 8px;
+    padding: 10px 24px;
+    font-size: 13px;
+    color: #93c5fd;
+    letter-spacing: 0.5px;
+  }
+  .principle-badge strong { color: #60a5fa; }
+
+  /* ── Architecture grid ── */
+  .arch {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    max-width: 960px;
+    margin: 0 auto;
+  }
+
+  /* ── Layer ── */
+  .layer {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    position: relative;
+  }
+  .layer-label {
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    transform: rotate(180deg);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: #475569;
+    padding: 0 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 32px;
+  }
+  .layer-content {
+    flex: 1;
+    display: flex;
+    gap: 12px;
+    padding: 16px 16px 16px 8px;
+    border-radius: 12px;
+    margin: 6px 0;
+  }
+
+  /* Layer colours */
+  .layer-user .layer-content   { background: #111827; border: 1px solid #1f2937; }
+  .layer-agent .layer-content  { background: #0f1f14; border: 1px solid #14532d; }
+  .layer-data .layer-content   { background: #0f1629; border: 1px solid #1e3a8a; }
+  .layer-infra .layer-content  { background: #1a1207; border: 1px solid #713f12; }
+
+  /* ── Cards ── */
+  .card {
+    flex: 1;
+    border-radius: 10px;
+    padding: 14px 16px;
+    position: relative;
+    min-width: 0;
+  }
+  .card-title {
+    font-size: 13px;
+    font-weight: 700;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+  .card-title .icon { font-size: 16px; }
+  .card-body {
+    font-size: 11px;
+    color: #94a3b8;
+    line-height: 1.6;
+  }
+  .card-body ul { list-style: none; }
+  .card-body ul li::before { content: "→ "; color: #475569; }
+  .tag {
+    display: inline-block;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    padding: 2px 7px;
+    border-radius: 4px;
+    margin-top: 6px;
+    text-transform: uppercase;
+  }
+
+  /* card themes */
+  .card-green  { background: #052e16; border: 1px solid #166534; }
+  .card-green .card-title { color: #4ade80; }
+  .card-green .tag { background: #14532d; color: #86efac; }
+
+  .card-blue   { background: #0c1a3a; border: 1px solid #1d4ed8; }
+  .card-blue .card-title { color: #60a5fa; }
+  .card-blue .tag { background: #1e3a8a; color: #93c5fd; }
+
+  .card-purple { background: #1a0b2e; border: 1px solid #6d28d9; }
+  .card-purple .card-title { color: #c084fc; }
+  .card-purple .tag { background: #4c1d95; color: #ddd6fe; }
+
+  .card-amber  { background: #1c1000; border: 1px solid #92400e; }
+  .card-amber .card-title { color: #fbbf24; }
+  .card-amber .tag { background: #78350f; color: #fde68a; }
+
+  .card-slate  { background: #0f172a; border: 1px solid #334155; }
+  .card-slate .card-title { color: #e2e8f0; }
+  .card-slate .tag { background: #1e293b; color: #94a3b8; }
+
+  .card-teal   { background: #042f2e; border: 1px solid #0f766e; }
+  .card-teal .card-title { color: #2dd4bf; }
+  .card-teal .tag { background: #134e4a; color: #99f6e4; }
+
+  .card-red    { background: #1f0707; border: 1px solid #991b1b; }
+  .card-red .card-title { color: #f87171; }
+  .card-red .tag { background: #7f1d1d; color: #fca5a5; }
+
+  /* ── Arrow connector ── */
+  .arrow-row {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 28px;
+    position: relative;
+  }
+  .arrow-row::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: linear-gradient(to bottom, #334155, #475569);
+  }
+  .arrow-label {
+    background: #0a0e1a;
+    padding: 2px 12px;
+    font-size: 10px;
+    color: #64748b;
+    letter-spacing: 0.5px;
+    position: relative;
+    z-index: 1;
+    border: 1px solid #1e293b;
+    border-radius: 4px;
+  }
+
+  /* ── Agent sub-row ── */
+  .agent-row {
+    display: flex;
+    gap: 8px;
+    flex: 1;
+  }
+  .agent-card {
+    flex: 1;
+    border-radius: 8px;
+    padding: 10px 12px;
+    border: 1px solid;
+  }
+  .agent-card .agent-title {
+    font-size: 11px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  .agent-card .agent-body {
+    font-size: 10px;
+    color: #94a3b8;
+    line-height: 1.5;
+  }
+
+  .a-profile  { background: #0f2318; border-color: #166534; }
+  .a-profile .agent-title { color: #4ade80; }
+  .a-market   { background: #0c1a3a; border-color: #1d4ed8; }
+  .a-market .agent-title { color: #60a5fa; }
+  .a-career   { background: #1a1207; border-color: #713f12; }
+  .a-career .agent-title { color: #fbbf24; }
+  .a-gap      { background: #1a0b2e; border-color: #6d28d9; }
+  .a-gap .agent-title { color: #c084fc; }
+  .a-planner  { background: #042f2e; border-color: #0f766e; }
+  .a-planner .agent-title { color: #2dd4bf; }
+
+  .orchestrator-bar {
+    background: #0f172a;
+    border: 1px solid #334155;
+    border-radius: 8px;
+    padding: 8px 14px;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+  }
+  .orchestrator-bar .orch-title {
+    font-size: 11px;
+    font-weight: 700;
+    color: #e2e8f0;
+  }
+  .orchestrator-bar .orch-sub {
+    font-size: 10px;
+    color: #64748b;
+  }
+  .orch-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: #22c55e;
+    box-shadow: 0 0 6px #22c55e;
+    flex-shrink: 0;
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%,100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  /* ── BQ tables ── */
+  .bq-tables {
+    display: flex;
+    gap: 8px;
+    flex: 1;
+    flex-wrap: wrap;
+  }
+  .bq-table {
+    flex: 1;
+    min-width: 140px;
+    background: #0c1a3a;
+    border: 1px solid #1d4ed8;
+    border-radius: 8px;
+    padding: 10px 12px;
+  }
+  .bq-table .tname {
+    font-size: 11px;
+    font-weight: 700;
+    color: #60a5fa;
+    margin-bottom: 4px;
+  }
+  .bq-table .tfields {
+    font-size: 10px;
+    color: #64748b;
+    line-height: 1.6;
+    font-family: 'Courier New', monospace;
+  }
+
+  /* ── Output row ── */
+  .outputs {
+    display: flex;
+    gap: 8px;
+    flex: 1;
+  }
+  .output-pill {
+    flex: 1;
+    border-radius: 8px;
+    padding: 10px 12px;
+    text-align: center;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .op-1 { background: #052e16; border: 1px solid #166534; color: #4ade80; }
+  .op-2 { background: #0c1a3a; border: 1px solid #1d4ed8; color: #60a5fa; }
+  .op-3 { background: #1a0b2e; border: 1px solid #6d28d9; color: #c084fc; }
+  .op-4 { background: #042f2e; border: 1px solid #0f766e; color: #2dd4bf; }
+  .op-5 { background: #1c1000; border: 1px solid #92400e; color: #fbbf24; }
+  .output-pill .op-icon { font-size: 18px; display: block; margin-bottom: 4px; }
+  .output-pill .op-sub { font-size: 10px; color: #64748b; margin-top: 2px; }
+
+  /* ── Formula ── */
+  .formula-box {
+    max-width: 960px;
+    margin: 20px auto 0;
+    background: #0f1629;
+    border: 1px solid #1e3a8a;
+    border-radius: 10px;
+    padding: 16px 24px;
+    text-align: center;
+  }
+  .formula-box .f-label {
+    font-size: 11px;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+  }
+  .formula-box .f-eq {
+    font-size: 13px;
+    color: #93c5fd;
+    font-family: 'Courier New', monospace;
+    line-height: 1.8;
+  }
+  .formula-box .f-eq span { color: #60a5fa; font-weight: 700; }
+
+  /* ── Footer ── */
+  .footer {
+    text-align: center;
+    margin-top: 28px;
+    font-size: 11px;
+    color: #334155;
+  }
+  .stack-chips {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+  }
+  .chip {
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 20px;
+    padding: 4px 12px;
+    font-size: 11px;
+    color: #94a3b8;
+  }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <div class="logo">C<span>.</span>Route</div>
+  <div class="sub">System Architecture — v1.0 | Checkpoint 1 | 20 Aug 2026</div>
+  <div class="tagline">"Your career. Your route. Your next move."</div>
+</div>
+
+<!-- Principle -->
+<div class="principle">
+  <div class="principle-badge">
+    Core Principle: <strong>Data decides. AI explains.</strong> &nbsp;|&nbsp; Market facts from BigQuery. Gemini interprets evidence, never invents it.
+  </div>
+</div>
+
+<!-- Architecture -->
+<div class="arch">
+
+  <!-- LAYER 0: USER -->
+  <div class="layer layer-user">
+    <div class="layer-label" style="color:#475569;">User</div>
+    <div class="layer-content">
+      <div class="card card-slate" style="max-width:340px;">
+        <div class="card-title"><span class="icon">👤</span> User Profile Input</div>
+        <div class="card-body">
+          <ul>
+            <li>Free-text resume / skills description</li>
+            <li>Current role + experience level</li>
+            <li>Career goal / target destination</li>
+          </ul>
+          <span class="tag">React / Firebase Hosting</span>
+        </div>
+      </div>
+      <div class="card card-slate" style="flex:2;">
+        <div class="card-title"><span class="icon">🖥️</span> C.Route Frontend (6 Screens)</div>
+        <div class="card-body" style="display:flex;gap:8px;flex-wrap:wrap;">
+          <span style="background:#1e293b;border:1px solid #334155;border-radius:5px;padding:3px 8px;font-size:10px;color:#94a3b8;">① Profile</span>
+          <span style="background:#1e293b;border:1px solid #334155;border-radius:5px;padding:3px 8px;font-size:10px;color:#94a3b8;">② Career Radar</span>
+          <span style="background:#1e293b;border:1px solid #334155;border-radius:5px;padding:3px 8px;font-size:10px;color:#94a3b8;">③ Routes</span>
+          <span style="background:#1e293b;border:1px solid #334155;border-radius:5px;padding:3px 8px;font-size:10px;color:#94a3b8;">④ Route Detail</span>
+          <span style="background:#1e293b;border:1px solid #334155;border-radius:5px;padding:3px 8px;font-size:10px;color:#94a3b8;">⑤ 90-Day Route</span>
+          <span style="background:#1e293b;border:1px solid #334155;border-radius:5px;padding:3px 8px;font-size:10px;color:#94a3b8;">⑥ CRO Mentor</span>
+        </div>
+        <span class="tag" style="background:#1e293b;color:#94a3b8;">React + Tailwind</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow-row"><span class="arrow-label">HTTPS REST API  ↕  JSON</span></div>
+
+  <!-- LAYER 1: BACKEND -->
+  <div class="layer" style="margin:0;">
+    <div class="layer-label" style="color:#475569;">API</div>
+    <div class="layer-content" style="background:#111827;border:1px solid #1f2937;">
+      <div class="card card-amber">
+        <div class="card-title"><span class="icon">⚡</span> FastAPI Backend</div>
+        <div class="card-body">
+          <ul>
+            <li>POST /profile — extract + normalise skills</li>
+            <li>GET /routes — scored destinations</li>
+            <li>GET /routes/{id}/evidence — BQ metrics</li>
+            <li>GET /routes/{id}/gaps — skill gap list</li>
+            <li>POST /whatif — alternate route simulation</li>
+            <li>GET /roadmap — 90-day plan</li>
+          </ul>
+          <span class="tag">Cloud Run (Docker)</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow-row"><span class="arrow-label">ADK Agent Calls</span></div>
+
+  <!-- LAYER 2: AGENTS -->
+  <div class="layer">
+    <div class="layer-label" style="color:#166534;">Agents</div>
+    <div class="layer-content" style="background:#0f1f14;border:1px solid #14532d;flex-direction:column;gap:10px;">
+
+      <!-- Orchestrator bar -->
+      <div class="orchestrator-bar">
+        <div class="orch-dot"></div>
+        <div>
+          <div class="orch-title">🎛 ADK Orchestrator</div>
+          <div class="orch-sub">Routes requests → coordinates agents → assembles final response</div>
+        </div>
+        <span style="margin-left:auto;font-size:10px;background:#1e293b;padding:2px 8px;border-radius:4px;color:#64748b;border:1px solid #334155;">Google ADK</span>
+      </div>
+
+      <!-- 5 Agents -->
+      <div class="agent-row">
+        <div class="agent-card a-profile">
+          <div class="agent-title">👤 Profile Agent</div>
+          <div class="agent-body">Extracts + normalises skills from free text via Gemini. Outputs structured skill JSON.</div>
+        </div>
+        <div class="agent-card a-market">
+          <div class="agent-title">📊 Market Agent</div>
+          <div class="agent-body">Queries BigQuery for demand score, velocity, adjacency. Returns evidence objects.</div>
+        </div>
+        <div class="agent-card a-career">
+          <div class="agent-title">🗺 Career Agent</div>
+          <div class="agent-body">Runs Route Fit formula across candidate occupations. Returns ranked route list.</div>
+        </div>
+        <div class="agent-card a-gap">
+          <div class="agent-title">🔍 Skill Gap Agent</div>
+          <div class="agent-body">Computes target − current skills. Ranks gaps by demand × impact score.</div>
+        </div>
+        <div class="agent-card a-planner">
+          <div class="agent-title">🧭 Planner / CRO</div>
+          <div class="agent-body">Generates 90-day roadmap + mentor explanations via Gemini. Handles What-if.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow-row"><span class="arrow-label">SQL Queries (BQ Client) &nbsp;|&nbsp; Gemini API Calls</span></div>
+
+  <!-- LAYER 3: DATA -->
+  <div class="layer">
+    <div class="layer-label" style="color:#1d4ed8;">Data</div>
+    <div class="layer-content" style="background:#0f1629;border:1px solid #1e3a8a;flex-direction:column;gap:10px;">
+
+      <div style="display:flex;gap:12px;">
+
+        <!-- BigQuery block -->
+        <div style="flex:2;">
+          <div style="font-size:11px;font-weight:700;color:#60a5fa;margin-bottom:8px;">🗄 BigQuery — dataset: <code style="color:#93c5fd;">croute_market</code></div>
+          <div class="bq-tables">
+            <div class="bq-table">
+              <div class="tname">occupations</div>
+              <div class="tfields">occupation_id<br>title<br>category<br>geography</div>
+            </div>
+            <div class="bq-table">
+              <div class="tname">skills</div>
+              <div class="tfields">skill_id<br>skill_name<br>category<br>skill_type</div>
+            </div>
+            <div class="bq-table">
+              <div class="tname">occupation_skills</div>
+              <div class="tfields">occupation_id<br>skill_id<br>importance<br>period</div>
+            </div>
+            <div class="bq-table">
+              <div class="tname">market_demand</div>
+              <div class="tfields">occupation_id<br>skill_id<br>period<br>demand_count<br>demand_share</div>
+            </div>
+            <div class="bq-table">
+              <div class="tname">skill_edges</div>
+              <div class="tfields">skill_a<br>skill_b<br>cooccurrence<br>period</div>
+            </div>
+          </div>
+          <div style="margin-top:8px;font-size:10px;color:#475569;">
+            Data sources: O*NET public data · Kaggle job skills datasets · Synthetic labeled data &nbsp;|&nbsp; ~25 occupations · ~35 skills · 2 time periods
+          </div>
+        </div>
+
+        <!-- Gemini block -->
+        <div style="flex:1;">
+          <div style="font-size:11px;font-weight:700;color:#c084fc;margin-bottom:8px;">✨ Gemini API (Google AI Studio)</div>
+          <div class="card card-purple" style="height:calc(100% - 28px);">
+            <div class="card-body">
+              <ul>
+                <li>Profile/skill extraction</li>
+                <li>Skill normalisation</li>
+                <li>Route explanation (structured JSON)</li>
+                <li>90-day roadmap generation</li>
+                <li>What-if interpretation</li>
+                <li>CRO mentor dialogue</li>
+              </ul>
+              <span class="tag">gemini-1.5-pro</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow-row"><span class="arrow-label">Structured Outputs</span></div>
+
+  <!-- LAYER 4: OUTPUTS -->
+  <div class="layer">
+    <div class="layer-label" style="color:#475569;">Output</div>
+    <div class="layer-content" style="background:#111827;border:1px solid #1f2937;">
+      <div class="outputs">
+        <div class="output-pill op-1"><span class="op-icon">🗺</span>Career Routes<div class="op-sub">3–5 ranked destinations</div></div>
+        <div class="output-pill op-2"><span class="op-icon">📊</span>Route Fit Score<div class="op-sub">5-factor formula</div></div>
+        <div class="output-pill op-3"><span class="op-icon">🔍</span>Skill Gap List<div class="op-sub">ranked by impact</div></div>
+        <div class="output-pill op-4"><span class="op-icon">📅</span>90-Day Roadmap<div class="op-sub">weekly milestones</div></div>
+        <div class="output-pill op-5"><span class="op-icon">🔀</span>What-if Route<div class="op-sub">scenario simulation</div></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Route Fit Formula -->
+<div class="formula-box">
+  <div class="f-label">Route Fit Formula (deterministic — BigQuery powered)</div>
+  <div class="f-eq">
+    <span>Route Fit</span> = 0.40 × skill_overlap &nbsp;+&nbsp; 0.25 × market_demand &nbsp;+&nbsp; 0.15 × demand_velocity<br>
+    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;+&nbsp; 0.10 × skill_adjacency &nbsp;−&nbsp; 0.10 × gap_effort
+  </div>
+</div>
+
+<!-- Stack chips -->
+<div class="stack-chips" style="margin-top:20px;">
+  <div class="chip">☁️ Google Cloud</div>
+  <div class="chip">🗄 BigQuery</div>
+  <div class="chip">✨ Gemini 1.5 Pro</div>
+  <div class="chip">🤖 Google ADK</div>
+  <div class="chip">🚀 Cloud Run</div>
+  <div class="chip">🔥 Firebase Hosting</div>
+  <div class="chip">⚡ FastAPI</div>
+  <div class="chip">⚛️ React</div>
+</div>
+
+<div class="footer" style="margin-top:16px;">
+  C.Route · Patchamomma 2026 · Solo build · Build window: 15 Aug – 7 Sep 2026
+</div>
+
+</body>
+</html>
