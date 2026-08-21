@@ -4,9 +4,10 @@ SELECT
   o.title,
   o.category,
   o.geography,
-  SUM(md.demand_count)           AS total_demand,
-  ROUND(AVG(md.demand_share), 4) AS avg_demand_share
-FROM `croute-hackathon.croute_market.market_demand` md
-JOIN `croute-hackathon.croute_market.occupations` o ON md.occupation_id = o.occupation_id
-WHERE md.period = (SELECT MAX(period) FROM `croute-hackathon.croute_market.market_demand`)
+  COALESCE(SUM(md.demand_count), 0)           AS total_demand,
+  ROUND(COALESCE(AVG(md.demand_share), 0.0), 4) AS avg_demand_share
+FROM `croute-hackathon.croute_market.occupations` o
+LEFT JOIN `croute-hackathon.croute_market.market_demand` md
+  ON o.occupation_id = md.occupation_id
+  AND md.period = (SELECT MAX(period) FROM `croute-hackathon.croute_market.market_demand`)
 GROUP BY o.occupation_id, o.title, o.category, o.geography;
