@@ -1,0 +1,46 @@
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Node and frontend builds
+node_modules/
+dist/
+build/
+.next/
+.nuxt/
+.vite/
+coverage/
+
+# Local data and runtime output
+*.log
+*.pid
+*.sqlite
+*.sqlite3
+*.db
+
+# Editors and operating systems
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.bak
