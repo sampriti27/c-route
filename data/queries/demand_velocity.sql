@@ -4,6 +4,16 @@ WITH periods AS (
     MAX(period) AS current_period,
     MIN(period) AS prev_period
   FROM `croute-hackathon.croute_market.market_demand`
+),
+current_demand_data AS (
+  SELECT *
+  FROM `croute-hackathon.croute_market.market_demand`
+  WHERE period = (SELECT current_period FROM periods)
+),
+prev_demand_data AS (
+  SELECT *
+  FROM `croute-hackathon.croute_market.market_demand`
+  WHERE period = (SELECT prev_period FROM periods)
 )
 SELECT
   d1.occupation_id,
@@ -16,11 +26,9 @@ SELECT
     SAFE_DIVIDE(d1.demand_count - d0.demand_count, d0.demand_count) * 100,
     2
   ) AS velocity_pct
-FROM `croute-hackathon.croute_market.market_demand` d1
-JOIN `croute-hackathon.croute_market.market_demand` d0
+FROM current_demand_data d1
+JOIN prev_demand_data d0
   ON  d1.occupation_id = d0.occupation_id
   AND d1.skill_id      = d0.skill_id
-  AND d0.period = (SELECT prev_period FROM periods)
 JOIN `croute-hackathon.croute_market.occupations` o ON d1.occupation_id = o.occupation_id
-JOIN `croute-hackathon.croute_market.skills` s      ON d1.skill_id      = s.skill_id
-WHERE d1.period = (SELECT current_period FROM periods);
+JOIN `croute-hackathon.croute_market.skills` s      ON d1.skill_id      = s.skill_id;

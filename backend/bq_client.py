@@ -109,21 +109,25 @@ class BigQueryClient:
 
     def get_demand_scores(self) -> Dict[str, Dict[str, Any]]:
         """
-        Returns latest period market demand metrics per occupation from v_demand_score.
+        Returns latest period market demand metrics per occupation.
         Guarantees all occupations are present using LEFT JOIN / defaults.
         """
         sql = f"""
+        WITH latest_demand AS (
+          SELECT occupation_id, demand_count, demand_share
+          FROM `{self.project_id}.{self.dataset_id}.market_demand`
+          WHERE period = (SELECT MAX(period) FROM `{self.project_id}.{self.dataset_id}.market_demand`)
+        )
         SELECT
           o.occupation_id,
           o.title,
           o.category,
           o.geography,
-          COALESCE(SUM(md.demand_count), 0) AS total_demand,
-          ROUND(COALESCE(AVG(md.demand_share), 0.0), 4) AS avg_demand_share
+          COALESCE(SUM(ld.demand_count), 0) AS total_demand,
+          ROUND(COALESCE(AVG(ld.demand_share), 0.0), 4) AS avg_demand_share
         FROM `{self.project_id}.{self.dataset_id}.occupations` o
-        LEFT JOIN `{self.project_id}.{self.dataset_id}.market_demand` md
-          ON o.occupation_id = md.occupation_id
-          AND md.period = (SELECT MAX(period) FROM `{self.project_id}.{self.dataset_id}.market_demand`)
+        LEFT JOIN latest_demand ld
+          ON o.occupation_id = ld.occupation_id
         GROUP BY o.occupation_id, o.title, o.category, o.geography
         """
         results = []
@@ -146,25 +150,49 @@ class BigQueryClient:
                     "category": occ["category"],
                     "geography": occ.get("geography", "India"),
                     "total_demand": 0,
-                    "avg_demand_share": 0.70,
+                    "avg_demand_share": 0.0,
                 }
         return demand_map
 
     def get_demand_velocities(self) -> Dict[str, Dict[str, Any]]:
         """
-        Returns period-over-period demand growth/velocity from v_demand_velocity.
+        Returns period-over-period demand growth/velocity.
         Guarantees all occupations are present with default metrics if missing.
         """
         sql = f"""
+        WITH periods AS (
+          SELECT
+            MAX(period) AS current_period,
+            MIN(period) AS prev_period
+          FROM `{self.project_id}.{self.dataset_id}.market_demand`
+        ),
+        current_demand_data AS (
+          SELECT *
+          FROM `{self.project_id}.{self.dataset_id}.market_demand`
+          WHERE period = (SELECT current_period FROM periods)
+        ),
+        prev_demand_data AS (
+          SELECT *
+          FROM `{self.project_id}.{self.dataset_id}.market_demand`
+          WHERE period = (SELECT prev_period FROM periods)
+        )
         SELECT
-          occupation_id,
-          title,
-          skill_id,
-          skill_name,
-          current_demand,
-          prev_demand,
-          velocity_pct
-        FROM `{self.project_id}.{self.dataset_id}.v_demand_velocity`
+          d1.occupation_id,
+          o.title,
+          d1.skill_id,
+          s.skill_name,
+          d1.demand_count AS current_demand,
+          d0.demand_count AS prev_demand,
+          ROUND(
+            SAFE_DIVIDE(d1.demand_count - d0.demand_count, d0.demand_count) * 100,
+            2
+          ) AS velocity_pct
+        FROM current_demand_data d1
+        JOIN prev_demand_data d0
+          ON  d1.occupation_id = d0.occupation_id
+          AND d1.skill_id      = d0.skill_id
+        JOIN `{self.project_id}.{self.dataset_id}.occupations` o ON d1.occupation_id = o.occupation_id
+        JOIN `{self.project_id}.{self.dataset_id}.skills` s      ON d1.skill_id      = s.skill_id
         """
         results = []
         if self._is_live:
@@ -331,11 +359,11 @@ class BigQueryClient:
 
     def _fallback_query(self, sql: str) -> List[Dict[str, Any]]:
         sql_lower = sql.lower()
-        if "v_demand_score" in sql_lower:
+        if "v_demand_score" in sql_lower or "avg_demand_share" in sql_lower or "total_demand" in sql_lower:
             return self._get_local_demand_scores()
-        elif "v_demand_velocity" in sql_lower:
+        elif "v_demand_velocity" in sql_lower or "velocity_pct" in sql_lower:
             return self._get_local_demand_velocities()
-        elif "v_skill_adjacency" in sql_lower:
+        elif "v_skill_adjacency" in sql_lower or "cooccurrence" in sql_lower:
             return self._get_local_skill_adjacency()
         elif "occupation_skills" in sql_lower:
             return self._get_local_occupation_skills()
