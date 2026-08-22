@@ -10,14 +10,20 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
 
 from bq_client import BigQueryClient
-from scorer import RouteScorer
+from scorer import RouteScorer, get_scorer
 
 
 class TestRouteScorer(unittest.TestCase):
 
     def setUp(self):
         self.bq_client = BigQueryClient()
-        self.scorer = RouteScorer(self.bq_client)
+        self.scorer = get_scorer(self.bq_client)
+
+    def test_get_scorer_singleton(self):
+        """Verify that get_scorer returns the same cached instance."""
+        s1 = get_scorer()
+        s2 = get_scorer()
+        self.assertIs(s1, s2)
 
     def test_market_data_loaded(self):
         """Verify that occupations, skills, demand scores, and velocities are loaded."""
@@ -32,6 +38,7 @@ class TestRouteScorer(unittest.TestCase):
         aisha_skills = ["Excel", "Finance Basics", "Communication", "PowerPoint"]
         routes = self.scorer.score_profile(
             current_skills=aisha_skills,
+            target_direction="analytics",
             score_all=True,
         )
 
@@ -49,6 +56,7 @@ class TestRouteScorer(unittest.TestCase):
         top_route = routes[0]
         self.assertEqual(top_route["occupation_id"], "OCC001")
         self.assertEqual(top_route["title"], "Business Analyst")
+        self.assertTrue(top_route["target_direction_match"])
         
         # Overlap: 4 matched out of 6 required (66.7%)
         self.assertEqual(top_route["matched_count"], 4)
@@ -63,6 +71,18 @@ class TestRouteScorer(unittest.TestCase):
         self.assertIn("Finance Basics", top_route["matched_skills"])
         self.assertIn("SQL", top_route["missing_skills"])
         self.assertIn("Power BI", top_route["missing_skills"])
+
+    def test_target_direction_filtering(self):
+        """Verify that score_all=False filters by target_direction when candidate_destinations is None."""
+        routes = self.scorer.score_profile(
+            current_skills=["Excel", "Finance Basics"],
+            target_direction="analytics",
+            score_all=False,
+        )
+        self.assertEqual(len(routes), 2)
+        for r in routes:
+            self.assertEqual(r["category"], "analytics")
+            self.assertTrue(r["target_direction_match"])
 
 
 if __name__ == "__main__":
