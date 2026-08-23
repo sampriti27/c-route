@@ -12,17 +12,13 @@ Formula:
 "Data decides. AI explains."
 """
 
-import json
-import os
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-# Ensure backend directory is in sys.path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from bq_client import BigQueryClient
-
 
 # Standard Formula Weights
 WEIGHT_OVERLAP = 0.40
@@ -33,7 +29,7 @@ WEIGHT_GAP_PENALTY = 0.10
 
 
 def normalize_name(name: str) -> str:
-    """Normalizes skill/occupation names for robust matching (e.g. 'finance_basics' -> 'finance basics')."""
+    """Normalizes skill/occupation names for robust matching."""
     return name.lower().replace("_", " ").replace("-", " ").strip()
 
 
@@ -49,14 +45,14 @@ class RouteScorer:
 
     def _load_market_data(self):
         """Loads and indexes market intelligence from BigQuery."""
-        # 1. Occupations
         self.occupations = {o["occupation_id"]: o for o in self.bq.get_occupations()}
-        
-        # 2. Skills
+
         self.skills = {s["skill_id"]: s for s in self.bq.get_skills()}
-        self.skill_name_to_id = {normalize_name(s["skill_name"]): s["skill_id"] for s in self.skills.values()}
-        
-        # 3. Occupation Skills Requirements
+        self.skill_name_to_id = {
+            normalize_name(s["skill_name"]): s["skill_id"]
+            for s in self.skills.values()
+        }
+
         raw_occ_skills = self.bq.get_occupation_skills()
         self.occupation_skills: Dict[str, List[Dict[str, Any]]] = {}
         for row in raw_occ_skills:
@@ -65,13 +61,9 @@ class RouteScorer:
                 self.occupation_skills[occ_id] = []
             self.occupation_skills[occ_id].append(row)
 
-        # 4. Demand Scores (v_demand_score)
         self.demand_scores = self.bq.get_demand_scores()
-
-        # 5. Demand Velocities (v_demand_velocity)
         self.demand_velocities = self.bq.get_demand_velocities()
 
-        # 6. Skill Adjacency Edges (v_skill_adjacency)
         raw_edges = self.bq.get_skill_adjacency()
         self.adjacency_graph: Dict[str, Dict[str, float]] = {}
         for edge in raw_edges:
@@ -82,7 +74,6 @@ class RouteScorer:
                 self.adjacency_graph[sa] = {}
             if sb not in self.adjacency_graph:
                 self.adjacency_graph[sb] = {}
-            # Undirected co-occurrence relationship
             self.adjacency_graph[sa][sb] = max(self.adjacency_graph[sa].get(sb, 0.0), weight)
             self.adjacency_graph[sb][sa] = max(self.adjacency_graph[sb].get(sa, 0.0), weight)
 
@@ -98,7 +89,6 @@ class RouteScorer:
             if norm in self.skill_name_to_id:
                 skill_ids.add(self.skill_name_to_id[norm])
             else:
-                # Substring/partial match fallback
                 for canonical_norm, s_id in self.skill_name_to_id.items():
                     if norm == canonical_norm or norm in canonical_norm or canonical_norm in norm:
                         skill_ids.add(s_id)
@@ -109,12 +99,8 @@ class RouteScorer:
         self, user_skill_ids: Set[str], required_skill_ids: Set[str]
     ) -> Tuple[float, Optional[str]]:
         """
-        Calculates the skill adjacency score for an occupation given user's skills.
-        
-        Evaluates co-occurrence strength between skills required by the occupation
-        and the user's skillset (including bridge edges to missing skills and 
-        co-occurrence synergy among matched skills like Excel <-> Finance Basics).
-        Returns a tuple of (adjacency_score, top_synergy_pair_label).
+        Calculates skill adjacency score between user skills and occupation requirements.
+        Returns (adjacency_score, top_synergy_pair_label).
         """
         if not required_skill_ids or not user_skill_ids:
             return 0.0, None
@@ -124,7 +110,6 @@ class RouteScorer:
         best_pair = None
 
         for req_id in required_skill_ids:
-            # Check maximum edge between this required skill and any of user's skills (excluding self)
             max_edge = 0.0
             best_u_id = None
             neighbors = self.adjacency_graph.get(req_id, {})
@@ -144,7 +129,6 @@ class RouteScorer:
         if not adj_values:
             return 0.0, None
 
-        # Average adjacency across required skills in the occupation
         return round(sum(adj_values) / len(adj_values), 4), best_pair
 
     def score_occupation(
@@ -153,21 +137,17 @@ class RouteScorer:
         user_skill_ids: Set[str],
         target_direction: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """
-        Calculates the 5-factor Route Fit score for a single target occupation.
-        """
+        """Calculates the 5-factor Route Fit score for a single target occupation."""
         occ = self.occupations.get(occupation_id, {})
         title = occ.get("title", occupation_id)
         category = occ.get("category", "general")
-        
-        # Target direction match flag
+
         target_dir_match = (
             normalize_name(category) == normalize_name(target_direction)
             if target_direction
             else False
         )
 
-        # Required skills for this occupation
         req_rows = self.occupation_skills.get(occupation_id, [])
         required_skill_ids = {r["skill_id"] for r in req_rows}
         total_req_count = len(required_skill_ids)
@@ -184,28 +164,24 @@ class RouteScorer:
                 "missing_skills": [],
             }
 
-        # 1. Skill Overlap (40%)
         matched_skill_ids = user_skill_ids.intersection(required_skill_ids)
         missing_skill_ids = required_skill_ids.difference(user_skill_ids)
         skill_overlap = len(matched_skill_ids) / total_req_count
 
-        # 2. Market Demand (25%)
         demand_data = self.demand_scores.get(occupation_id, {})
         avg_demand_share = float(demand_data.get("avg_demand_share", 0.0))
         total_demand = int(demand_data.get("total_demand", 0))
 
-        # 3. Demand Velocity (15%)
         vel_data = self.demand_velocities.get(occupation_id, {})
         normalized_velocity = float(vel_data.get("normalized_velocity", 0.0))
         avg_velocity_pct = float(vel_data.get("avg_velocity_pct", 0.0))
 
-        # 4. Skill Adjacency (10%)
-        adjacency_score, top_adjacency_pair = self.calculate_adjacency_score(user_skill_ids, required_skill_ids)
+        adjacency_score, top_adjacency_pair = self.calculate_adjacency_score(
+            user_skill_ids, required_skill_ids
+        )
 
-        # 5. Gap Effort Penalty (-10%)
         gap_effort = len(missing_skill_ids) / total_req_count
 
-        # Deterministic Composite Score
         route_fit = (
             (WEIGHT_OVERLAP * skill_overlap)
             + (WEIGHT_DEMAND * avg_demand_share)
@@ -213,11 +189,18 @@ class RouteScorer:
             + (WEIGHT_ADJACENCY * adjacency_score)
             - (WEIGHT_GAP_PENALTY * gap_effort)
         )
-        route_fit = max(0.0, min(1.0, route_fit))  # Bound between 0.0 and 1.0
+        route_fit = max(0.0, min(1.0, route_fit))
 
-        # Detailed names for matched and missing skills
-        matched_names = [self.skills[sid]["skill_name"] for sid in matched_skill_ids if sid in self.skills]
-        missing_names = [self.skills[sid]["skill_name"] for sid in missing_skill_ids if sid in self.skills]
+        matched_names = [
+            self.skills[sid]["skill_name"]
+            for sid in matched_skill_ids
+            if sid in self.skills
+        ]
+        missing_names = [
+            self.skills[sid]["skill_name"]
+            for sid in missing_skill_ids
+            if sid in self.skills
+        ]
 
         return {
             "occupation_id": occupation_id,
@@ -245,8 +228,49 @@ class RouteScorer:
                 "velocity_contrib": round(WEIGHT_VELOCITY * normalized_velocity, 4),
                 "adjacency_contrib": round(WEIGHT_ADJACENCY * adjacency_score, 4),
                 "gap_penalty": round(-WEIGHT_GAP_PENALTY * gap_effort, 4),
-            }
+            },
         }
+
+    def compute_skill_gaps(
+        self,
+        current_skills: List[str],
+        occupation_id: str,
+    ) -> List[Dict[str, Any]]:
+        """
+        Returns missing skills for an occupation ranked by market demand score.
+        Used by GeminiClient to build the 90-day roadmap skeleton.
+        """
+        normalised = {normalize_name(s) for s in current_skills}
+        if not self.occupations.get(occupation_id):
+            return []
+
+        req_rows = self.occupation_skills.get(occupation_id, [])
+        required_skill_ids = {r["skill_id"] for r in req_rows}
+        gaps = []
+
+        for skill_id in required_skill_ids:
+            skill = self.skills.get(skill_id)
+            if not skill:
+                continue
+
+            if (
+                normalize_name(skill["skill_name"]) in normalised
+                or normalize_name(skill_id) in normalised
+            ):
+                continue
+
+            occ_demand = self.demand_scores.get(occupation_id, {})
+            demand_score = float(occ_demand.get("avg_demand_share", 0.0))
+
+            gaps.append({
+                "skill_id": skill_id,
+                "skill_name": skill["skill_name"],
+                "category": skill.get("category", "default"),
+                "demand_score": demand_score,
+            })
+
+        gaps.sort(key=lambda g: g["demand_score"], reverse=True)
+        return gaps
 
     def score_profile(
         self,
@@ -257,32 +281,25 @@ class RouteScorer:
     ) -> List[Dict[str, Any]]:
         """
         Scores and ranks career destinations for a user profile.
-
-        Args:
-            current_skills: List of skills held by user.
-            candidate_destinations: Optional list of destination titles or IDs to evaluate.
-            target_direction: Optional user focus area/domain (e.g. 'analytics', 'finance', 'product').
-                              When score_all=False and candidate_destinations is not specified, filters
-                              candidate occupations by category. All returned routes are tagged with
-                              `target_direction_match`.
-            score_all: If True, evaluates all occupations in catalog (default). If False, limits evaluation
-                       to candidate_destinations or target_direction.
         """
         user_skill_ids = self._map_user_skills(current_skills)
         target_dir_norm = normalize_name(target_direction) if target_direction else None
 
-        # Candidate occupation selection
         if not score_all:
             if candidate_destinations:
                 candidate_ids = []
                 for dest in candidate_destinations:
                     norm_dest = normalize_name(dest)
                     for occ_id, occ in self.occupations.items():
-                        if norm_dest in normalize_name(occ["title"]) or norm_dest == normalize_name(occ_id):
+                        if (
+                            norm_dest in normalize_name(occ["title"])
+                            or norm_dest == normalize_name(occ_id)
+                        ):
                             candidate_ids.append(occ_id)
             elif target_dir_norm:
                 candidate_ids = [
-                    occ_id for occ_id, occ in self.occupations.items()
+                    occ_id
+                    for occ_id, occ in self.occupations.items()
                     if normalize_name(occ.get("category", "")) == target_dir_norm
                 ]
             else:
@@ -293,19 +310,19 @@ class RouteScorer:
         else:
             candidate_ids = list(self.occupations.keys())
 
-        # Score each candidate
         ranked_routes = []
         for occ_id in candidate_ids:
-            score_card = self.score_occupation(occ_id, user_skill_ids, target_direction=target_direction)
+            score_card = self.score_occupation(
+                occ_id, user_skill_ids, target_direction=target_direction
+            )
             ranked_routes.append(score_card)
 
-        # Sort descending by route_fit_score
         ranked_routes.sort(key=lambda x: x["route_fit_score"], reverse=True)
         return ranked_routes
 
 
 # --------------------------------------------------------------------------
-# App-Level Singleton Accessor for FastAPI / Web Services
+# Singleton Accessor
 # --------------------------------------------------------------------------
 _SCORER_INSTANCE: Optional[RouteScorer] = None
 
@@ -313,10 +330,7 @@ _SCORER_INSTANCE: Optional[RouteScorer] = None
 def get_scorer(
     bq_client: Optional[BigQueryClient] = None, force_refresh: bool = False
 ) -> RouteScorer:
-    """
-    Returns a cached RouteScorer singleton instance to avoid repetitive BigQuery queries.
-    Pass force_refresh=True to reload market data on demand.
-    """
+    """Returns a cached RouteScorer singleton. Pass force_refresh=True to reload."""
     global _SCORER_INSTANCE
     if _SCORER_INSTANCE is None or force_refresh:
         _SCORER_INSTANCE = RouteScorer(bq_client=bq_client)
@@ -324,7 +338,6 @@ def get_scorer(
 
 
 if __name__ == "__main__":
-    # Run standalone demo from scripts
     scripts_dir = Path(__file__).resolve().parent.parent / "scripts"
     sys.path.insert(0, str(scripts_dir))
     from demo_scorer import run_aisha_demo

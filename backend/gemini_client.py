@@ -21,7 +21,7 @@ except ImportError:
 # --------------------------------------------------------------------------
 # Constants
 # --------------------------------------------------------------------------
-MODEL_ID = "gemini-2.0-flash"  # Update if project board changes
+MODEL_ID = "gemini-3.6-flash"  # Update if project board changes
 
 # Static platform suggestions per skill category (Phase 2: replace with real course API)
 RESOURCE_PLATFORMS: Dict[str, List[str]] = {
@@ -89,6 +89,19 @@ class GeminiClient:
             config=types.GenerateContentConfig(
                 temperature=0.0,
                 max_output_tokens=max_tokens,
+                thinking_config=types.ThinkingConfig(thinking_budget=0),
+            ),
+        )
+        return response.text.strip()
+        """Single Gemini call at temperature=0 for consistency."""
+        if not self.is_live or not self.client:
+            return ""
+        response = self.client.models.generate_content(
+            model=self.model_id,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                temperature=0.0,
+                max_output_tokens=max_tokens,
             ),
         )
         return response.text.strip()
@@ -139,7 +152,7 @@ Write 2–3 sentences covering:
 Rules: Never say "perfect". Never invent numbers. Tone: confident, data-grounded, warm mentor."""
 
         try:
-            result = self._call(prompt, max_tokens=256)
+            result = self._call(prompt, max_tokens=1024)
             return result if result else self._fallback_explanation(top_route, profile_name)
         except Exception as e:
             print(f"[WARN] explain_route failed: {e}")
@@ -252,18 +265,18 @@ Rules: Never say "perfect". Never invent numbers. Tone: confident, data-grounded
 
             if skill == "Integration & Portfolio":
                 prompt = f"""You are CRO, the Career Route Oracle.
-Write exactly 2 sentences for the final roadmap phase ({weeks}) for {name} targeting {title}.
-Focus: consolidating skills into a portfolio project that demonstrates job readiness.
+Respond with 2 sentences only. First sentence: what to build. Second sentence: why it demonstrates readiness for {title}.
+Focus: consolidating {name}'s skills into a portfolio project for {title} during {weeks}.
 Be specific and encouraging. Do not mention salary or guarantees. Do not invent statistics."""
             else:
                 prompt = f"""You are CRO, the Career Route Oracle.
-Write exactly 2 sentences for roadmap phase {weeks} for {name} targeting {title}.
+Respond with 2 sentences only. First sentence: what to learn. Second sentence: why it matters for {title}.
 Focus skill: {skill}{f' (market demand score: {demand}%)' if demand is not None else ''}.
 Explain what to learn and why it matters for {title}. Be specific and actionable.
 Do not mention salary or guarantees. Do not invent statistics."""
 
             try:
-                enriched = self._call(prompt, max_tokens=128)
+                enriched = self._call(prompt, max_tokens=512)
                 if enriched:
                     phase["description"] = enriched
             except Exception as e:
