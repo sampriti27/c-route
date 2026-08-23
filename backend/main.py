@@ -13,38 +13,28 @@ from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import AliasChoices, BaseModel, Field
 
-# Ensure backend directory is in sys.path
 BACKEND_DIR = Path(__file__).resolve().parent
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 from scorer import RouteScorer, get_scorer
+from gemini_client import GeminiClient, get_gemini_client
 
 
 # --------------------------------------------------------------------------
 # Request & Response Models
 # --------------------------------------------------------------------------
 class ProfileRequest(BaseModel):
-    """User profile request payload for career route scoring."""
-
     skills: List[str] = Field(
         default_factory=list,
-        description="List of current skills held by the user",
         validation_alias=AliasChoices("skills", "current_skills"),
     )
     target: Optional[str] = Field(
         default=None,
-        description="Target career direction or domain focus (e.g. 'analytics', 'finance', 'product')",
         validation_alias=AliasChoices("target", "target_direction"),
     )
-    candidate_destinations: Optional[List[str]] = Field(
-        default=None,
-        description="Optional list of destination titles or occupation IDs to evaluate",
-    )
-    score_all: bool = Field(
-        default=True,
-        description="If True, scores all occupations in catalog; if False, filters to candidates/target direction",
-    )
+    candidate_destinations: Optional[List[str]] = None
+    score_all: bool = True
     profile_id: Optional[str] = None
     name: Optional[str] = None
     education: Optional[str] = None
@@ -53,22 +43,10 @@ class ProfileRequest(BaseModel):
     model_config = {
         "populate_by_name": True,
         "extra": "ignore",
-        "json_schema_extra": {
-            "example": {
-                "name": "Aisha",
-                "education": "B.Com graduate",
-                "skills": ["Excel", "Finance Basics", "Communication", "PowerPoint"],
-                "target": "analytics",
-                "experience_years": 0,
-                "score_all": True,
-            }
-        },
     }
 
 
 class HealthResponse(BaseModel):
-    """Health check status response."""
-
     status: str
     service: str
     scorer_ready: bool
@@ -76,48 +54,48 @@ class HealthResponse(BaseModel):
     skills_count: int
     data_source: str
     live_bigquery: bool
+    gemini_live: bool
 
 
 class ProfileResponse(BaseModel):
-    """Ranked career routes response."""
-
     status: str = "success"
     profile_name: Optional[str] = None
     target_direction: Optional[str] = None
     total_routes: int
     routes: List[Dict[str, Any]]
+    cro_explanation: Optional[str] = None
+    roadmap_90_day: Optional[List[Dict[str, Any]]] = None
+    roadmap_weeks: Optional[int] = None
+    gemini_live: Optional[bool] = None
 
 
 # --------------------------------------------------------------------------
-# Application Lifespan (Startup / Shutdown)
+# Lifespan
 # --------------------------------------------------------------------------
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """
-    Initializes RouteScorer singleton and warms up market intelligence cache
-    at application startup.
-    """
     print("[INFO] Starting C.Route API server...")
     scorer = get_scorer()
+    gemini = get_gemini_client()
     print(
-        f"[INFO] RouteScorer ready. Loaded {len(scorer.occupations)} occupations, "
+        f"[INFO] RouteScorer ready — {len(scorer.occupations)} occupations, "
         f"{len(scorer.skills)} skills. Live BQ: {scorer.bq.is_live}"
     )
+    print(f"[INFO] GeminiClient ready — Live: {gemini.is_live}")
     yield
-    print("[INFO] Shutting down C.Route API server...")
+    print("[INFO] Shutting down C.Route API server.")
 
 
 # --------------------------------------------------------------------------
-# FastAPI Application Initialization
+# App
 # --------------------------------------------------------------------------
 app = FastAPI(
     title="C.Route API",
-    description="Deterministic Route Fit scoring engine for career pathways. 'Data decides. AI explains.'",
+    description="Deterministic Route Fit scoring engine. 'Data decides. AI explains.'",
     version="1.0.0",
     lifespan=lifespan,
 )
 
-# Enable CORS for frontend clients
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -128,18 +106,13 @@ app.add_middleware(
 
 
 # --------------------------------------------------------------------------
-# API Routes
+# Routes
 # --------------------------------------------------------------------------
-@app.get(
-    "/health",
-    response_model=HealthResponse,
-    tags=["System"],
-    summary="Service health and scorer status",
-)
+@app.get("/health", response_model=HealthResponse, tags=["System"])
 async def health_check() -> HealthResponse:
-    """Returns backend health status, market data counts, and BigQuery connection mode."""
     try:
         scorer = get_scorer()
+        gemini = get_gemini_client()
         return HealthResponse(
             status="healthy",
             service="c-route-backend",
@@ -152,33 +125,25 @@ async def health_check() -> HealthResponse:
                 else "Offline Fallback (Seed Dataset)"
             ),
             live_bigquery=scorer.bq.is_live if scorer else False,
+            gemini_live=gemini.is_live,
         )
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Health check failed: {str(e)}",
-        )
+        raise HTTPException(status_code=500, detail=f"Health check failed: {str(e)}")
 
 
-@app.post(
-    "/profile",
-    response_model=ProfileResponse,
-    tags=["Scoring"],
-    summary="Score and rank career routes for a user profile",
-)
+@app.post("/profile", response_model=ProfileResponse, tags=["Scoring"])
 async def score_profile_endpoint(payload: ProfileRequest) -> ProfileResponse:
-    """
-    Accepts user skills and optional target direction, computes deterministic 5-factor
-    Route Fit scores across career destinations, and returns ranked routes.
-    """
     if not payload.skills:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="At least one skill must be provided in 'skills' or 'current_skills'.",
+            detail="At least one skill must be provided.",
         )
 
     try:
         scorer = get_scorer()
+        gemini = get_gemini_client()
+
+        # Step 1 — Deterministic scoring (data decides)
         ranked_routes = scorer.score_profile(
             current_skills=payload.skills,
             candidate_destinations=payload.candidate_destinations,
@@ -186,21 +151,33 @@ async def score_profile_endpoint(payload: ProfileRequest) -> ProfileResponse:
             score_all=payload.score_all,
         )
 
+        # Step 2 — Skill gaps for top route (data decides order)
+        cro_output = {}
+        if ranked_routes:
+            top_route = ranked_routes[0]
+            top_occ_id = top_route.get("occupation_id", "")
+            skill_gaps = scorer.compute_skill_gaps(payload.skills, top_occ_id)
+
+            # Step 3 — Gemini explains (AI explains)
+            cro_output = gemini.generate_cro_response(
+                top_route=top_route,
+                skill_gaps=skill_gaps,
+                profile_name=payload.name,
+            )
+
         return ProfileResponse(
             status="success",
             profile_name=payload.name,
             target_direction=payload.target,
             total_routes=len(ranked_routes),
             routes=ranked_routes,
+            **cro_output,
         )
+
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error scoring profile: {str(e)}",
-        )
+        raise HTTPException(status_code=500, detail=f"Error scoring profile: {str(e)}")
 
 
 if __name__ == "__main__":
     import uvicorn
-
     uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
