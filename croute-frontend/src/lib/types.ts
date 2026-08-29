@@ -47,11 +47,37 @@ export interface Route {
 
 export interface RoadmapWeek {
   weeks: string;
+  week_start?: number;
+  week_end?: number;
   focus_skill: string;
   demand_score: number | null;
   suggested_platforms: string[];
   description: string;
   milestone: string;
+}
+
+export interface SkillGap {
+  skill_id: string;
+  skill_name: string;
+  category: string;
+  demand_score: number;
+}
+
+export interface SkillGapsRequest {
+  skills: string[];
+  occupation_id: string;
+}
+
+export interface AskRequest {
+  question: string;
+  occupation_id: string;
+  skills: string[];
+  target?: string;
+  name?: string;
+}
+
+export interface AskResponse {
+  answer: string;
 }
 
 export interface ProfileResponse {

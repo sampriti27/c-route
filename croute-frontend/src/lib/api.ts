@@ -1,6 +1,13 @@
 import axios, { AxiosError } from "axios";
 
-import type { HealthResponse, ProfileRequest, ProfileResponse } from "./types";
+import type {
+  AskRequest,
+  AskResponse,
+  HealthResponse,
+  ProfileRequest,
+  ProfileResponse,
+  SkillGap,
+} from "./types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -52,6 +59,30 @@ export async function getHealth(): Promise<HealthResponse> {
 export async function postProfile(payload: ProfileRequest): Promise<ProfileResponse> {
   try {
     const { data } = await client.post<ProfileResponse>("/profile", payload);
+    return data;
+  } catch (error) {
+    throw toApiError(error);
+  }
+}
+
+export async function getSkillGaps(
+  skills: string[],
+  occupationId: string
+): Promise<SkillGap[]> {
+  try {
+    const { data } = await client.post<SkillGap[]>("/skill-gaps", {
+      skills,
+      occupation_id: occupationId,
+    });
+    return data;
+  } catch (error) {
+    throw toApiError(error);
+  }
+}
+
+export async function askCro(payload: AskRequest): Promise<AskResponse> {
+  try {
+    const { data } = await client.post<AskResponse>("/ask", payload);
     return data;
   } catch (error) {
     throw toApiError(error);

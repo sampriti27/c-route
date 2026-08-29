@@ -89,19 +89,6 @@ class GeminiClient:
             config=types.GenerateContentConfig(
                 temperature=0.0,
                 max_output_tokens=max_tokens,
-                thinking_config=types.ThinkingConfig(thinking_budget=0),
-            ),
-        )
-        return response.text.strip()
-        """Single Gemini call at temperature=0 for consistency."""
-        if not self.is_live or not self.client:
-            return ""
-        response = self.client.models.generate_content(
-            model=self.model_id,
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                temperature=0.0,
-                max_output_tokens=max_tokens,
             ),
         )
         return response.text.strip()
@@ -284,6 +271,66 @@ Do not mention salary or guarantees. Do not invent statistics."""
                 # Keep skeleton description as fallback
 
         return skeleton
+
+    # ------------------------------------------------------------------
+    # Free-form Q&A (CRO chat / What-if page)
+    # ------------------------------------------------------------------
+    def answer_question(
+        self,
+        question: str,
+        route: Dict[str, Any],
+        profile_name: Optional[str] = None,
+    ) -> str:
+        """
+        Answers a free-form user question about a single scored route.
+        Grounded in the same real breakdown numbers as explain_route —
+        Gemini narrates the data, it never invents its own figures.
+        """
+        if not self.is_live:
+            return self._fallback_answer(question, route, profile_name)
+
+        name = profile_name or "you"
+        title = route.get("title", "this role")
+        fit = round(route.get("route_fit_score", 0) * 100, 1)
+        matched = route.get("matched_skills", [])
+        missing = route.get("missing_skills", [])
+        bd = route.get("breakdown", {})
+
+        prompt = f"""You are CRO, the Career Route Oracle for C.Route — a data-driven career navigation system.
+
+Answer the user's question in 2–4 sentences using ONLY the data provided below.
+DO NOT invent market statistics, salaries, or job counts not present in this data.
+
+USER: {name}
+QUESTION: {question}
+
+ROUTE UNDER DISCUSSION: {title}
+ROUTE FIT SCORE: {fit}%
+MATCHED SKILLS: {', '.join(matched) if matched else 'None'}
+MISSING SKILLS: {', '.join(missing) if missing else 'None'}
+MARKET DEMAND: {round(bd.get('market_demand', 0) * 100, 1)}%
+SKILL OVERLAP: {round(bd.get('skill_overlap', 0) * 100, 1)}%
+DEMAND VELOCITY: {round(bd.get('demand_velocity', 0) * 100, 1)}% growth
+SKILL ADJACENCY: {round(bd.get('skill_adjacency', 0), 2)}
+
+Rules: Never invent numbers not shown above. Tone: confident, data-grounded, warm mentor."""
+
+        try:
+            result = self._call(prompt, max_tokens=512)
+            return result if result else self._fallback_answer(question, route, profile_name)
+        except Exception as e:
+            print(f"[WARN] answer_question failed: {e}")
+            return self._fallback_answer(question, route, profile_name)
+
+    def _fallback_answer(self, question: str, route: Dict, profile_name: Optional[str]) -> str:
+        title = route.get("title", "this role")
+        fit = round(route.get("route_fit_score", 0) * 100, 1)
+        missing = route.get("missing_skills", [])
+        return (
+            f"For {title}, the current Route Fit score is {fit}%. "
+            f"Closing the gap on {', '.join(missing[:2]) if missing else 'the remaining required skills'} "
+            f"is the most direct lever to raise it further."
+        )
 
     # ------------------------------------------------------------------
     # Master method called by main.py
