@@ -1,0 +1,18 @@
+services:
+  frontend:
+    build:
+      context: ./croute-frontend
+      dockerfile: Dockerfile.dev
+    container_name: croute-frontend
+    ports:
+      - "3000:3000"
+    volumes:
+      # Hot-reload: mount source directories into the container
+      # node_modules stays inside the container (do NOT mount it)
+      - ./croute-frontend/src:/app/src
+      - ./croute-frontend/public:/app/public
+      - ./croute-frontend/tailwind.config.ts:/app/tailwind.config.ts
+      - ./croute-frontend/next.config.ts:/app/next.config.ts
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    restart: unless-stopped
