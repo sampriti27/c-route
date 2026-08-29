@@ -46,6 +46,27 @@ class ProfileRequest(BaseModel):
     }
 
 
+class SkillGapsRequest(BaseModel):
+    skills: List[str] = Field(default_factory=list)
+    occupation_id: str
+
+    model_config = {"extra": "ignore"}
+
+
+class AskRequest(BaseModel):
+    question: str
+    occupation_id: str
+    skills: List[str] = Field(default_factory=list)
+    target: Optional[str] = None
+    name: Optional[str] = None
+
+    model_config = {"extra": "ignore"}
+
+
+class AskResponse(BaseModel):
+    answer: str
+
+
 class HealthResponse(BaseModel):
     status: str
     service: str
@@ -176,6 +197,52 @@ async def score_profile_endpoint(payload: ProfileRequest) -> ProfileResponse:
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error scoring profile: {str(e)}")
+
+
+@app.post("/skill-gaps", response_model=List[Dict[str, Any]], tags=["Scoring"])
+async def skill_gaps_endpoint(payload: SkillGapsRequest) -> List[Dict[str, Any]]:
+    try:
+        scorer = get_scorer()
+        if payload.occupation_id not in scorer.occupations:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Unknown occupation_id: {payload.occupation_id}",
+            )
+        return scorer.compute_skill_gaps(payload.skills, payload.occupation_id)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error computing skill gaps: {str(e)}")
+
+
+@app.post("/ask", response_model=AskResponse, tags=["Scoring"])
+async def ask_endpoint(payload: AskRequest) -> AskResponse:
+    if not payload.question.strip():
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="question must not be empty.",
+        )
+
+    try:
+        scorer = get_scorer()
+        gemini = get_gemini_client()
+
+        if payload.occupation_id not in scorer.occupations:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Unknown occupation_id: {payload.occupation_id}",
+            )
+
+        user_skill_ids = scorer._map_user_skills(payload.skills)
+        route = scorer.score_occupation(
+            payload.occupation_id, user_skill_ids, target_direction=payload.target
+        )
+        answer = gemini.answer_question(payload.question, route, profile_name=payload.name)
+        return AskResponse(answer=answer)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error answering question: {str(e)}")
 
 
 if __name__ == "__main__":
