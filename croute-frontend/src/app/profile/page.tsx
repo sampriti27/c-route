@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { AlertCircle, ArrowRight, ListChecks, Plus, Sparkles, X } from "lucide-react";
 
@@ -28,6 +28,11 @@ export default function ProfilePage() {
   const [newSkillInput, setNewSkillInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Wake the backend as soon as the page mounts so it's warm by the time the user submits.
+  useEffect(() => {
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/health`).catch(() => {});
+  }, []);
 
   // Add custom skill pill
   function handleAddSkill() {

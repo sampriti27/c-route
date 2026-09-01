@@ -13,7 +13,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 const client = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 30_000,
+  timeout: 60_000,
   headers: { "Content-Type": "application/json" },
 });
 
@@ -31,7 +31,7 @@ function toApiError(error: unknown): ApiError {
   if (axios.isAxiosError(error)) {
     const err = error as AxiosError<{ detail?: string }>;
     if (err.code === "ECONNABORTED") {
-      return new ApiError("Backend timed out (30s). Try again.");
+      return new ApiError("Taking a moment to start up — please try again in a few seconds.");
     }
     if (!err.response) {
       return new ApiError(
