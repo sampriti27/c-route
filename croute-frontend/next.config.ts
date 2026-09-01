@@ -1,9 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Required for the production Docker image (standalone output)
-  // This makes `next build` emit a self-contained server.js
-  output: "standalone",
+  // Standalone output is only needed for the Docker image; Vercel's
+  // own build pipeline breaks (404 NOT_FOUND) if this is set.
+  output: process.env.VERCEL ? undefined : "standalone",
 };
 
 export default nextConfig;
