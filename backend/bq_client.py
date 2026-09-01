@@ -35,7 +35,8 @@ class BigQueryClient:
             from google.cloud import bigquery
             self.client = bigquery.Client(project=self.project_id)
             self._is_live = True
-        except Exception:
+        except Exception as e:
+            print(f"[BigQueryClient] Failed to initialize live client ({e}). Using local market dataset.")
             self.client = None
             self._is_live = False
 
