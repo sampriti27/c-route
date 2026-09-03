@@ -41,7 +41,7 @@ const NAV_STEPS: NavStep[] = [
   },
   {
     step: 5,
-    label: "90-Day Route",
+    label: "Roadmap",
     href: "/roadmap",
     isActive: (p) => p === "/roadmap",
   },

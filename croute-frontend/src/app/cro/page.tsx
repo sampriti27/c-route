@@ -10,7 +10,7 @@ import { CircularGauge } from "@/components/ui/circular-gauge";
 
 const PRESET_QUESTIONS = [
   "Which single skill gives me the biggest Route Fit boost?",
-  "How realistic is closing my current skill gaps in 90 days?",
+  "How realistic is closing my current skill gaps on this roadmap?",
   "What is the market demand velocity for this route right now?",
 ];
 

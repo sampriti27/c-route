@@ -155,7 +155,7 @@ export default function RouteDetailPage({ params }: RouteDetailProps) {
               href="/roadmap"
               className="inline-flex items-center gap-2.5 rounded-xl bg-emerald-500 px-7 py-4 text-base font-bold text-slate-950 shadow-[0_0_25px_-5px_rgba(34,197,94,0.5)] transition-all hover:bg-emerald-400 hover:scale-105"
             >
-              <span>View 90-Day Route</span>
+              <span>View Roadmap</span>
               <ArrowRight className="size-5" />
             </Link>
           </div>
@@ -322,6 +322,78 @@ export default function RouteDetailPage({ params }: RouteDetailProps) {
             </div>
           </div>
 
+        </div>
+
+        {/* Understanding Your Route Fit Score */}
+        <div className="card backdrop-blur-md shadow-2xl">
+          <h2 className="font-display text-xl sm:text-2xl font-bold text-white">
+            Understanding your Route Fit score
+          </h2>
+          <p className="mt-2 text-sm text-slate-400 max-w-3xl">
+            Route Fit is one score built from five simple ingredients. Here&apos;s what each one actually means, in plain terms.
+          </p>
+
+          <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
+            <div className="flex flex-col gap-2">
+              <span className="inline-flex items-center gap-2 text-sm font-bold text-emerald-400">
+                <span className="size-2 rounded-full bg-emerald-400" />
+                Skill Overlap · 40%
+              </span>
+              <p className="text-sm text-slate-400">
+                Out of everything this job needs, how much do you already know how to do? This carries the most
+                weight because your current skills are the biggest head start.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <span className="inline-flex items-center gap-2 text-sm font-bold text-sky-400">
+                <span className="size-2 rounded-full bg-sky-400" />
+                Market Demand · 25%
+              </span>
+              <p className="text-sm text-slate-400">
+                How many companies are actively hiring for this role right now. A higher number means more open
+                doors and more job postings to apply to.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <span className="inline-flex items-center gap-2 text-sm font-bold text-teal-400">
+                <span className="size-2 rounded-full bg-teal-400" />
+                Demand Velocity · 15%
+              </span>
+              <p className="text-sm text-slate-400">
+                Is demand for this role heating up or cooling down? This looks at the trend over time, not just
+                today, so you can bet on a role that&apos;s growing rather than fading.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <span className="inline-flex items-center gap-2 text-sm font-bold text-purple-400">
+                <span className="size-2 rounded-full bg-purple-400" />
+                Skill Adjacency · 10%
+              </span>
+              <p className="text-sm text-slate-400">
+                Even for the skills you&apos;re missing, how closely related are they to what you already know? The
+                closer they are, the faster and easier they&apos;ll be to pick up.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <span className="inline-flex items-center gap-2 text-sm font-bold text-red-400">
+                <span className="size-2 rounded-full bg-red-400" />
+                Gap Effort · -10%
+              </span>
+              <p className="text-sm text-slate-400">
+                A small penalty based on how much work is left to close your skill gaps. The more skills you&apos;re
+                missing, the bigger the effort, so this nudges the score down a little.
+              </p>
+            </div>
+          </div>
+
+          <p className="mt-8 pt-5 border-t border-[#1b2844] text-xs text-slate-500">
+            Every factor is calculated directly from real hiring and skills data in{" "}
+            <span className="font-semibold text-sky-400">BigQuery</span> — none of it comes from Gemini or any AI guesswork.
+          </p>
         </div>
 
       </div>

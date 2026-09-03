@@ -7,7 +7,7 @@ import { AppStoreProvider } from "@/lib/store";
 
 export const metadata: Metadata = {
   title: "C.Route — Career Navigation Loop",
-  description: "Your career. Your route. Your next move. Real market data. Explainable routes. A 90-day plan that moves you forward.",
+  description: "Your career. Your route. Your next move. Real market data. Explainable routes. A roadmap that moves you forward.",
 };
 
 export default function RootLayout({

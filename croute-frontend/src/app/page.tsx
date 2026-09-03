@@ -14,7 +14,7 @@ const FLOW_STEPS = [
   "Routes",
   "Route Fit",
   "Skill Gap",
-  "90-Day Route",
+  "Roadmap",
   "What-if",
 ];
 
@@ -42,8 +42,9 @@ export default function LandingPage() {
 
         {/* Subtitle */}
         <p className="mt-8 md:mt-10 max-w-2xl text-base sm:text-lg leading-relaxed text-slate-400 font-normal">
-          Real market data. Explainable routes. A 90-day plan that moves you
-          forward — not a one-time recommendation, but a navigation loop.
+          You&apos;ve worked hard to get here. But &quot;what&apos;s next?&quot; still feels
+          unclear. C.Route reads the market, maps your skills, and shows you
+          the routes others take — so you can stop guessing and start moving.
         </p>
 
         {/* 4 Stat Metric Cards */}
@@ -63,13 +64,20 @@ export default function LandingPage() {
           ))}
         </div>
 
-        {/* CTA Button */}
-        <div className="mt-12 md:mt-16">
+        {/* Entry Points */}
+        <div className="mt-12 md:mt-16 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
           <Link
-            href="/profile"
+            href="/profile?path=grow"
             className="group inline-flex items-center gap-2.5 rounded-xl bg-emerald-500 px-9 py-4 text-base font-bold text-slate-950 shadow-[0_0_30px_-5px_rgba(34,197,94,0.6)] transition-all duration-200 hover:bg-emerald-400 hover:scale-105 hover:shadow-[0_0_40px_-3px_rgba(34,197,94,0.8)]"
           >
-            <span>Map My Career Route</span>
+            <span>I want to grow in my current field</span>
+            <ArrowRight className="size-5 transition-transform group-hover:translate-x-1.5" />
+          </Link>
+          <Link
+            href="/profile?path=switch"
+            className="group inline-flex items-center gap-2.5 rounded-xl border border-emerald-500/40 bg-[#0c1322] px-9 py-4 text-base font-bold text-emerald-400 transition-all duration-200 hover:border-emerald-500 hover:bg-[#0f182c] hover:scale-105"
+          >
+            <span>I want to move into something new</span>
             <ArrowRight className="size-5 transition-transform group-hover:translate-x-1.5" />
           </Link>
         </div>

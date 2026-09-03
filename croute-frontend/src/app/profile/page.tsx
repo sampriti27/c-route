@@ -8,6 +8,17 @@ import { postProfile } from "@/lib/api";
 import { ApiError } from "@/lib/api";
 import { useAppStore } from "@/lib/store";
 import type { ExtractedSkill } from "@/lib/mock-data";
+import { Select, SelectTrigger, SelectValue, SelectPopup, SelectItem } from "@/components/ui/select";
+
+const TARGET_DIRECTION_OPTIONS = [
+  { value: "finance", label: "Finance" },
+  { value: "marketing", label: "Marketing" },
+  { value: "operations", label: "Operations" },
+  { value: "hr", label: "HR" },
+  { value: "software-engineer", label: "Software Engineer" },
+  { value: "product-manager", label: "Product Manager" },
+  { value: "data-analyst", label: "Data Analyst" },
+];
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -28,10 +39,20 @@ export default function ProfilePage() {
   const [newSkillInput, setNewSkillInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [careerPath, setCareerPath] = useState<"grow" | "switch" | null>(null);
 
   // Wake the backend as soon as the page mounts so it's warm by the time the user submits.
   useEffect(() => {
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/health`).catch(() => {});
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/health`).catch(() => { });
+  }, []);
+
+  // Pick up the entry point the user chose on the landing page (grow vs. switch)
+  // so the target-direction context set there actually carries through to the form.
+  useEffect(() => {
+    const path = new URLSearchParams(window.location.search).get("path");
+    if (path === "grow" || path === "switch") {
+      setCareerPath(path);
+    }
   }, []);
 
   // Add custom skill pill
@@ -66,6 +87,11 @@ export default function ProfilePage() {
 
     if (extractedSkills.length === 0) {
       setError("Add at least one skill before analyzing your profile.");
+      return;
+    }
+
+    if (careerPath === "switch" && !targetDirection.trim()) {
+      setError("Pick the field you're moving toward before analyzing your profile.");
       return;
     }
 
@@ -126,7 +152,11 @@ export default function ProfilePage() {
                 Tell us where you are
               </h1>
               <p className="mt-2 text-sm sm:text-base text-slate-400">
-                Describe your background for context, then list your skills below — they're what gets scored against live market data.
+                {careerPath === "switch"
+                  ? "You're looking to move into something new — describe your background, then tell us the field you're headed toward below."
+                  : careerPath === "grow"
+                    ? "You're looking to grow where you are — describe your background and we'll show how to level up in your current field."
+                    : "Describe your background for context, then list your skills below — they're what gets scored against live market data."}
               </p>
             </div>
 
@@ -189,21 +219,29 @@ export default function ProfilePage() {
                   htmlFor="targetDirection"
                   className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2.5"
                 >
-                  TARGET DIRECTION (OPTIONAL)
+                  TARGET DIRECTION {careerPath === "switch" ? "" : "(OPTIONAL)"}
                 </label>
-                <select
-                  id="targetDirection"
+                <Select
                   value={targetDirection}
-                  onChange={(e) => setTargetDirection(e.target.value)}
-                  className="w-full rounded-xl border border-[#1b2844] bg-[#0c1322] px-4 py-3 text-sm text-white focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 transition-all cursor-pointer"
+                  onValueChange={(value) => setTargetDirection(value ?? "")}
                 >
-                  <option value="">No preference — show all</option>
-                  <option value="analytics">Analytics / Data</option>
-                  <option value="finance">Finance</option>
-                  <option value="marketing">Marketing</option>
-                  <option value="product">Product</option>
-                  <option value="operations">Operations</option>
-                </select>
+                  <SelectTrigger id="targetDirection">
+                    <SelectValue>
+                      {(value: string | null) =>
+                        TARGET_DIRECTION_OPTIONS.find((opt) => opt.value === value)?.label ??
+                        "No preference"
+                      }
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectPopup>
+                    <SelectItem value="">No preference</SelectItem>
+                    {TARGET_DIRECTION_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectPopup>
+                </Select>
               </div>
             </div>
 

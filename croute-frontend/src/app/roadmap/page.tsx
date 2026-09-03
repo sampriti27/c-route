@@ -86,7 +86,7 @@ export default function RoadmapPage() {
           </div>
           <h1 className="font-display text-2xl font-bold text-white">No route selected yet</h1>
           <p className="text-sm text-slate-400">
-            Analyze your profile to generate a 90-day route grounded in your skill gaps.
+            Analyze your profile to generate a roadmap grounded in your skill gaps.
           </p>
           <Link
             href="/profile"
@@ -116,7 +116,7 @@ export default function RoadmapPage() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-8 border-b border-[#1b2844]">
           <div>
             <span className="text-xs font-bold uppercase tracking-widest text-emerald-400">
-              90-DAY ROUTE · {currentRoute.title.toUpperCase()}
+              ROADMAP · {currentRoute.title.toUpperCase()}
             </span>
 
             <h1 className="mt-2.5 font-display text-4xl sm:text-5xl md:text-6xl font-black tracking-tight text-white">
