@@ -163,7 +163,7 @@ export default function CroWhatIfPage() {
             </span>
 
             <h1 className="mt-2 font-display text-4xl sm:text-5xl md:text-6xl font-black tracking-tight text-white">
-              CRO + What-If Simulator
+              Reroute Simulator
             </h1>
 
             <p className="mt-2.5 text-sm sm:text-base text-slate-400 max-w-2xl">

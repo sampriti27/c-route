@@ -43,7 +43,7 @@ const NAV_STEPS: NavStep[] = [
     isActive: (p) => p === "/roadmap",
   },
   {
-    label: "CRO + What-if",
+    label: "Reroute",
     href: "/cro",
     isActive: (p) => p === "/cro",
   },
