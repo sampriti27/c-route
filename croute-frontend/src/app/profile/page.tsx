@@ -1,10 +1,20 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type DragEvent, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { AlertCircle, ArrowRight, ListChecks, Plus, Sparkles, X } from "lucide-react";
+import {
+  AlertCircle,
+  ArrowRight,
+  FileText,
+  ListChecks,
+  Loader2,
+  Plus,
+  Sparkles,
+  UploadCloud,
+  X,
+} from "lucide-react";
 
-import { postProfile } from "@/lib/api";
+import { extractProfile, postProfile } from "@/lib/api";
 import { ApiError } from "@/lib/api";
 import { useAppStore } from "@/lib/store";
 import type { ExtractedSkill } from "@/lib/mock-data";
@@ -19,6 +29,18 @@ const TARGET_DIRECTION_OPTIONS = [
   { value: "product-manager", label: "Product Manager" },
   { value: "data-analyst", label: "Data Analyst" },
 ];
+
+const ACCEPTED_RESUME_TYPES = [".pdf", ".txt"];
+
+// Best-effort match of Gemini's free-text target_direction guess against our fixed option list.
+function matchTargetDirection(freeText: string | null | undefined): string | null {
+  if (!freeText) return null;
+  const normalized = freeText.toLowerCase();
+  const found = TARGET_DIRECTION_OPTIONS.find(
+    (opt) => normalized.includes(opt.value.replace("-", " ")) || normalized.includes(opt.label.toLowerCase())
+  );
+  return found?.value ?? null;
+}
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -40,6 +62,13 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [careerPath, setCareerPath] = useState<"grow" | "switch" | null>(null);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [resumeFileName, setResumeFileName] = useState<string | null>(null);
+  const [resumeUploading, setResumeUploading] = useState(false);
+  const [resumeError, setResumeError] = useState<string | null>(null);
+  const [resumeNotice, setResumeNotice] = useState<string | null>(null);
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
 
   // Wake the backend as soon as the page mounts so it's warm by the time the user submits.
   useEffect(() => {
@@ -79,6 +108,78 @@ export default function ProfilePage() {
   // Quick preset loading — fills the form only, does not call the backend
   function handleLoadSample() {
     loadSampleProfile();
+  }
+
+  async function handleResumeFile(file: File) {
+    const extension = file.name.slice(file.name.lastIndexOf(".")).toLowerCase();
+    if (!ACCEPTED_RESUME_TYPES.includes(extension)) {
+      setResumeError("Only .pdf and .txt resumes are supported.");
+      return;
+    }
+
+    setResumeError(null);
+    setResumeNotice(null);
+    setResumeUploading(true);
+    setResumeFileName(file.name);
+
+    try {
+      const extracted = await extractProfile(file);
+
+      if (extracted.name) setName(extracted.name);
+      if (extracted.current_role) setCurrentRole(extracted.current_role);
+
+      const matchedTarget = matchTargetDirection(extracted.target_direction);
+      if (matchedTarget) setTargetDirection(matchedTarget);
+
+      const existingNames = new Set(extractedSkills.map((s) => s.name.toLowerCase()));
+      const newSkills: ExtractedSkill[] = extracted.skills
+        .filter((name) => name.trim() && !existingNames.has(name.trim().toLowerCase()))
+        .map((name) => ({ name: name.trim(), category: "Technical", proficiency: "Moderate" }));
+
+      if (newSkills.length > 0) {
+        setExtractedSkills([...extractedSkills, ...newSkills]);
+      }
+
+      const filledParts = [
+        extracted.name && "name",
+        extracted.current_role && "role",
+        newSkills.length > 0 && `${newSkills.length} skill${newSkills.length === 1 ? "" : "s"}`,
+      ].filter(Boolean);
+
+      setResumeNotice(
+        filledParts.length > 0
+          ? `Pre-filled ${filledParts.join(", ")} from your resume — review before analyzing.`
+          : "Resume processed, but nothing new could be extracted — add details manually below."
+      );
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : "Could not process that resume.";
+      setResumeError(message);
+    } finally {
+      setResumeUploading(false);
+    }
+  }
+
+  function handleFileInputChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (file) handleResumeFile(file);
+    event.target.value = "";
+  }
+
+  function handleDragOver(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    setIsDraggingFile(true);
+  }
+
+  function handleDragLeave(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    setIsDraggingFile(false);
+  }
+
+  function handleDrop(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    setIsDraggingFile(false);
+    const file = event.dataTransfer.files?.[0];
+    if (file) handleResumeFile(file);
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -158,6 +259,67 @@ export default function ProfilePage() {
                     ? "You're looking to grow where you are — describe your background and we'll show how to level up in your current field."
                     : "Describe your background for context, then list your skills below — they're what gets scored against live market data."}
               </p>
+            </div>
+
+            {/* Resume Upload Dropzone */}
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">
+                UPLOAD RESUME (OPTIONAL)
+              </label>
+              <div
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                onClick={() => fileInputRef.current?.click()}
+                className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed px-5 py-6 text-center transition-all ${
+                  isDraggingFile
+                    ? "border-emerald-500 bg-[#0f182c]"
+                    : "border-[#1b2844] bg-[#0c1322] hover:border-emerald-500/50"
+                }`}
+              >
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf,.txt"
+                  onChange={handleFileInputChange}
+                  className="hidden"
+                />
+                {resumeUploading ? (
+                  <>
+                    <Loader2 className="size-5 animate-spin text-emerald-400" />
+                    <p className="text-sm text-slate-300">Reading your resume…</p>
+                  </>
+                ) : resumeFileName ? (
+                  <>
+                    <FileText className="size-5 text-emerald-400" />
+                    <p className="text-sm text-slate-300">
+                      {resumeFileName}
+                      <span className="text-slate-500"> — click or drop to replace</span>
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <UploadCloud className="size-5 text-slate-400" />
+                    <p className="text-sm text-slate-300">
+                      Drop your resume here, or <span className="text-emerald-400 font-semibold">browse</span>
+                    </p>
+                    <p className="text-xs text-slate-500">PDF or TXT — we&apos;ll pre-fill the fields below</p>
+                  </>
+                )}
+              </div>
+
+              {resumeError && (
+                <div className="mt-2.5 flex items-start gap-2 text-xs text-red-400">
+                  <AlertCircle className="size-3.5 shrink-0 mt-0.5" />
+                  <span>{resumeError}</span>
+                </div>
+              )}
+              {resumeNotice && !resumeError && (
+                <div className="mt-2.5 flex items-start gap-2 text-xs text-emerald-400">
+                  <Sparkles className="size-3.5 shrink-0 mt-0.5" />
+                  <span>{resumeNotice}</span>
+                </div>
+              )}
             </div>
 
             {/* Background Textarea Box */}
@@ -282,15 +444,16 @@ export default function ProfilePage() {
                 </span>
               </div>
 
-              {/* Skills List */}
+              {/* Skills List — wrapped pills in a capped, scrollable area so a
+                  resume that extracts 15-20 skills doesn't blow out the layout. */}
               {extractedSkills.length > 0 ? (
-                <div className="mt-5 flex flex-col gap-3">
+                <div className="mt-5 flex max-h-72 flex-wrap content-start gap-2 overflow-y-auto pr-1">
                   {extractedSkills.map((skill) => (
                     <div
                       key={skill.name}
-                      className="group flex items-center justify-between rounded-xl border border-emerald-500/30 bg-[#081b14]/70 px-4 py-3.5 transition-all hover:border-emerald-500/60 hover:bg-[#0a231b]"
+                      className="group flex items-center gap-2 rounded-full border border-emerald-500/30 bg-[#081b14]/70 pl-3.5 pr-2 py-1.5 transition-all hover:border-emerald-500/60 hover:bg-[#0a231b]"
                     >
-                      <span className="font-semibold text-emerald-400 text-sm">
+                      <span className="font-semibold text-emerald-400 text-xs">
                         {skill.name}
                       </span>
 

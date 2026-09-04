@@ -92,6 +92,17 @@ export interface ProfileResponse {
   gemini_live?: boolean | null;
 }
 
+export interface ExtractProfileResponse {
+  status: string;
+  name?: string | null;
+  current_role?: string | null;
+  education?: string | null;
+  experience_years?: number | null;
+  skills: string[];
+  target_direction?: string | null;
+  gemini_live: boolean;
+}
+
 export interface HealthResponse {
   status: string;
   service: string;

@@ -4,7 +4,9 @@ CRO (Career Route Oracle) — explains route recommendations and generates 90-da
 "Data decides. AI explains." Gemini receives pre-computed numbers — it never invents them.
 """
 
+import json
 import os
+import re
 from typing import Any, Dict, List, Optional
 
 from dotenv import load_dotenv
@@ -331,6 +333,114 @@ Rules: Never invent numbers not shown above. Tone: confident, data-grounded, war
             f"Closing the gap on {', '.join(missing[:2]) if missing else 'the remaining required skills'} "
             f"is the most direct lever to raise it further."
         )
+
+    # ------------------------------------------------------------------
+    # Profile Extraction (resume / free-text -> structured profile)
+    # ------------------------------------------------------------------
+    def extract_profile_from_text(self, text: str) -> Dict[str, Any]:
+        """
+        Parses free-form resume/profile text into the structured fields
+        ProfileRequest expects: name, current_role, education, experience_years,
+        skills, target_direction. Used by both the free-text profile form and
+        the /extract-profile resume-upload endpoint.
+        """
+        if not self.is_live:
+            return self._fallback_extract_profile(text)
+
+        prompt = f"""You are a resume parser for C.Route, a data-driven career navigation system.
+
+Extract the following fields from the resume/profile text below and return STRICT JSON only —
+no markdown fences, no commentary, no trailing text.
+
+{{
+  "name": string or null,
+  "current_role": string or null (their most recent/current job title, e.g. "Junior Finance Executive"),
+  "education": string or null,
+  "experience_years": number or null,
+  "skills": array of short skill name strings (e.g. "Excel", "Python", "Financial Modeling"),
+  "target_direction": string or null (the career field/role the person is aiming for, if stated or implied)
+}}
+
+RESUME/PROFILE TEXT:
+\"\"\"
+{text[:8000]}
+\"\"\"
+
+Return ONLY the JSON object."""
+
+        try:
+            raw = self._call(prompt, max_tokens=1024)
+            data = self._parse_json_object(raw)
+            if data is None:
+                return self._fallback_extract_profile(text)
+            skills = [s.strip() for s in data.get("skills") or [] if isinstance(s, str) and s.strip()]
+            return {
+                "name": data.get("name") or None,
+                "current_role": data.get("current_role") or None,
+                "education": data.get("education") or None,
+                "experience_years": data.get("experience_years"),
+                "skills": skills,
+                "target_direction": data.get("target_direction") or None,
+                "gemini_live": True,
+            }
+        except Exception as e:
+            print(f"[WARN] extract_profile_from_text failed: {e}")
+            return self._fallback_extract_profile(text)
+
+    def _parse_json_object(self, raw: str) -> Optional[Dict[str, Any]]:
+        if not raw:
+            return None
+        match = re.search(r"\{.*\}", raw, re.DOTALL)
+        if not match:
+            return None
+        try:
+            return json.loads(match.group(0))
+        except json.JSONDecodeError:
+            return None
+
+    def _fallback_extract_profile(self, text: str) -> Dict[str, Any]:
+        """Best-effort offline extraction — used when Gemini is unavailable."""
+        skills: List[str] = []
+        try:
+            from scorer import get_scorer
+            scorer = get_scorer()
+            normalized = text.lower()
+            for skill in scorer.skills.values():
+                skill_name = skill.get("skill_name", "")
+                if skill_name and skill_name.lower() in normalized:
+                    skills.append(skill_name)
+        except Exception as e:
+            print(f"[WARN] Offline skill matching failed: {e}")
+
+        years_match = re.search(r"(\d+(?:\.\d+)?)\s*\+?\s*years?", text, re.IGNORECASE)
+        experience_years = float(years_match.group(1)) if years_match else None
+
+        first_line = next((line.strip() for line in text.splitlines() if line.strip()), None)
+        name = first_line if first_line and len(first_line) <= 60 else None
+
+        education = None
+        for line in text.splitlines():
+            if re.search(r"\b(bachelor|b\.?com|b\.?sc|b\.?tech|master|m\.?ba|degree|diploma)\b", line, re.IGNORECASE):
+                education = line.strip()
+                break
+
+        current_role = None
+        role_keywords = r"\b(analyst|manager|executive|engineer|intern|associate|consultant|developer|coordinator|specialist|lead|director)\b"
+        for line in text.splitlines():
+            stripped = line.strip()
+            if stripped and stripped != name and len(stripped) <= 60 and re.search(role_keywords, stripped, re.IGNORECASE):
+                current_role = stripped
+                break
+
+        return {
+            "name": name,
+            "current_role": current_role,
+            "education": education,
+            "experience_years": experience_years,
+            "skills": skills,
+            "target_direction": None,
+            "gemini_live": False,
+        }
 
     # ------------------------------------------------------------------
     # Master method called by main.py

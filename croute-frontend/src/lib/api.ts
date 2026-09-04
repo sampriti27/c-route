@@ -3,6 +3,7 @@ import axios, { AxiosError } from "axios";
 import type {
   AskRequest,
   AskResponse,
+  ExtractProfileResponse,
   HealthResponse,
   ProfileRequest,
   ProfileResponse,
@@ -59,6 +60,22 @@ export async function getHealth(): Promise<HealthResponse> {
 export async function postProfile(payload: ProfileRequest): Promise<ProfileResponse> {
   try {
     const { data } = await client.post<ProfileResponse>("/profile", payload);
+    return data;
+  } catch (error) {
+    throw toApiError(error);
+  }
+}
+
+export async function extractProfile(file: File): Promise<ExtractProfileResponse> {
+  try {
+    const formData = new FormData();
+    formData.append("file", file);
+    // Leave Content-Type unset here — the browser must compute the multipart
+    // boundary itself; overriding the header (even to "multipart/form-data")
+    // strips that boundary and the backend fails to parse the body.
+    const { data } = await client.post<ExtractProfileResponse>("/extract-profile", formData, {
+      headers: { "Content-Type": undefined },
+    });
     return data;
   } catch (error) {
     throw toApiError(error);

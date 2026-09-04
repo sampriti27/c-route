@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, File, HTTPException, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import AliasChoices, BaseModel, Field
 
@@ -76,6 +76,17 @@ class HealthResponse(BaseModel):
     data_source: str
     live_bigquery: bool
     gemini_live: bool
+
+
+class ExtractProfileResponse(BaseModel):
+    status: str = "success"
+    name: Optional[str] = None
+    current_role: Optional[str] = None
+    education: Optional[str] = None
+    experience_years: Optional[float] = None
+    skills: List[str] = Field(default_factory=list)
+    target_direction: Optional[str] = None
+    gemini_live: bool = False
 
 
 class ProfileResponse(BaseModel):
@@ -197,6 +208,59 @@ async def score_profile_endpoint(payload: ProfileRequest) -> ProfileResponse:
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error scoring profile: {str(e)}")
+
+
+def _extract_text_from_upload(filename: str, raw_bytes: bytes) -> str:
+    """Extracts raw text from an uploaded resume file (.pdf or .txt)."""
+    suffix = Path(filename).suffix.lower()
+
+    if suffix == ".txt":
+        return raw_bytes.decode("utf-8", errors="ignore")
+
+    if suffix == ".pdf":
+        try:
+            from PyPDF2 import PdfReader
+        except ImportError as e:
+            raise HTTPException(
+                status_code=500,
+                detail="PDF support not installed on server (PyPDF2 missing).",
+            ) from e
+
+        import io
+        reader = PdfReader(io.BytesIO(raw_bytes))
+        return "\n".join(page.extract_text() or "" for page in reader.pages)
+
+    raise HTTPException(
+        status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+        detail="Only .pdf and .txt files are supported.",
+    )
+
+
+@app.post("/extract-profile", response_model=ExtractProfileResponse, tags=["Scoring"])
+async def extract_profile_endpoint(file: UploadFile = File(...)) -> ExtractProfileResponse:
+    """Extracts a structured profile (name, skills, education, ...) from an uploaded resume."""
+    if not file.filename:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="No file provided.")
+
+    raw_bytes = await file.read()
+    if not raw_bytes:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Uploaded file is empty.")
+
+    text = _extract_text_from_upload(file.filename, raw_bytes)
+    if not text.strip():
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Could not extract any text from the uploaded file.",
+        )
+
+    try:
+        gemini = get_gemini_client()
+        extracted = gemini.extract_profile_from_text(text)
+        return ExtractProfileResponse(status="success", **extracted)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error extracting profile: {str(e)}")
 
 
 @app.post("/admin/reload", response_model=HealthResponse, tags=["System"])
