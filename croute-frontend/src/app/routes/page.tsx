@@ -49,7 +49,10 @@ export default function RoutesPage() {
         {/* Page Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-[#1b2844]">
           <div>
-            <h1 className="font-display text-3xl sm:text-4xl font-bold tracking-tight text-white">
+            <span className="text-xs font-bold uppercase tracking-widest text-emerald-400">
+              CAREER ROUTES
+            </span>
+            <h1 className="mt-2 font-display text-3xl sm:text-4xl font-bold tracking-tight text-white">
               Career Routes for <span className="text-emerald-400">{profileName}</span>
             </h1>
             <p className="mt-2 text-sm text-slate-400">

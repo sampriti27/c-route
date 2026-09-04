@@ -237,7 +237,7 @@ export default function ProfilePage() {
             <div>
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold uppercase tracking-widest text-emerald-400">
-                  STEP 1 OF 2
+                  YOUR PROFILE
                 </span>
                 <button
                   type="button"

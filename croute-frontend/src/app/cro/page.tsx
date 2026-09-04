@@ -159,7 +159,7 @@ export default function CroWhatIfPage() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-8 border-b border-[#1b2844]">
           <div>
             <span className="text-xs font-bold uppercase tracking-widest text-emerald-400">
-              STEP 6 · SCENARIO SIMULATION & MENTOR
+              SCENARIO SIMULATION & MENTOR
             </span>
 
             <h1 className="mt-2 font-display text-4xl sm:text-5xl md:text-6xl font-black tracking-tight text-white">
