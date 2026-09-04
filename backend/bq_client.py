@@ -4,12 +4,15 @@ Handles labor market data retrieval from BigQuery tables and views.
 Supports both live BigQuery connections and local seed-data fallback.
 """
 
+import logging
 import os
 import re
 from typing import Any, Dict, List, Optional
 from dotenv import load_dotenv
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 # GCP & BigQuery configuration
 GCP_PROJECT = os.getenv("BIGQUERY_PROJECT_ID", "croute-hackathon")
@@ -35,8 +38,9 @@ class BigQueryClient:
             from google.cloud import bigquery
             self.client = bigquery.Client(project=self.project_id)
             self._is_live = True
-        except Exception as e:
-            print(f"[BigQueryClient] Failed to initialize live client ({e}). Using local market dataset.")
+            logger.info("BigQuery client live — project=%s dataset=%s", self.project_id, self.dataset_id)
+        except Exception:
+            logger.exception("Failed to initialize live BigQuery client. Using local market dataset.")
             self.client = None
             self._is_live = False
 
@@ -52,8 +56,8 @@ class BigQueryClient:
                 query_job = self.client.query(sql)
                 results = [dict(row) for row in query_job.result()]
                 return results
-            except Exception as e:
-                print(f"[BigQueryClient] Live query failed ({e}). Using local market dataset.")
+            except Exception:
+                logger.exception("Live BigQuery query failed. Using local market dataset.")
         return self._fallback_query(sql)
 
     # ----------------------------------------------------------------------
@@ -70,7 +74,7 @@ class BigQueryClient:
             try:
                 return self.query(sql)
             except Exception:
-                pass
+                logger.exception("get_occupations query failed. Using local occupations.")
         return self._get_local_occupations()
 
     def get_skills(self) -> List[Dict[str, Any]]:
@@ -83,7 +87,7 @@ class BigQueryClient:
             try:
                 return self.query(sql)
             except Exception:
-                pass
+                logger.exception("get_skills query failed. Using local skills.")
         return self._get_local_skills()
 
     def get_occupation_skills(self) -> List[Dict[str, Any]]:
@@ -105,7 +109,7 @@ class BigQueryClient:
             try:
                 return self.query(sql)
             except Exception:
-                pass
+                logger.exception("get_occupation_skills query failed. Using local occupation_skills.")
         return self._get_local_occupation_skills()
 
     def get_demand_scores(self) -> Dict[str, Dict[str, Any]]:
@@ -136,6 +140,7 @@ class BigQueryClient:
             try:
                 results = self.query(sql)
             except Exception:
+                logger.exception("get_demand_scores query failed. Using local demand scores.")
                 results = []
         if not results:
             results = self._get_local_demand_scores()
@@ -200,6 +205,7 @@ class BigQueryClient:
             try:
                 results = self.query(sql)
             except Exception:
+                logger.exception("get_demand_velocities query failed. Using local demand velocities.")
                 results = []
         if not results:
             results = self._get_local_demand_velocities()
@@ -246,7 +252,7 @@ class BigQueryClient:
             try:
                 return self.query(sql)
             except Exception:
-                pass
+                logger.exception("get_skill_adjacency query failed. Using local skill adjacency.")
         return self._get_local_skill_adjacency()
 
     # ----------------------------------------------------------------------

@@ -5,6 +5,7 @@ CRO (Career Route Oracle) — explains route recommendations and generates 90-da
 """
 
 import json
+import logging
 import os
 import re
 from typing import Any, Dict, List, Optional
@@ -12,6 +13,8 @@ from typing import Any, Dict, List, Optional
 from dotenv import load_dotenv
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 try:
     from google import genai
@@ -64,19 +67,19 @@ class GeminiClient:
         self.client = None
 
         if not GENAI_AVAILABLE:
-            print("[WARN] google-genai not installed. GeminiClient in offline mode.")
+            logger.warning("google-genai not installed. GeminiClient in offline mode.")
             return
 
         if not self.api_key:
-            print("[WARN] GEMINI_API_KEY not set. GeminiClient in offline mode.")
+            logger.warning("GEMINI_API_KEY not set. GeminiClient in offline mode.")
             return
 
         try:
             self.client = genai.Client(api_key=self.api_key)
             self.is_live = True
-            print(f"[INFO] GeminiClient ready — model: {self.model_id}")
-        except Exception as e:
-            print(f"[WARN] GeminiClient init failed: {e}. Falling back to offline mode.")
+            logger.info("GeminiClient ready — model: %s", self.model_id)
+        except Exception:
+            logger.exception("GeminiClient init failed. Falling back to offline mode.")
 
     # ------------------------------------------------------------------
     # Internal: raw Gemini call
@@ -94,6 +97,7 @@ class GeminiClient:
         """
         if not self.is_live or not self.client:
             return ""
+        logger.debug("Calling Gemini model=%s max_tokens=%d prompt_chars=%d", self.model_id, max_tokens, len(prompt))
         response = self.client.models.generate_content(
             model=self.model_id,
             contents=prompt,
@@ -104,7 +108,7 @@ class GeminiClient:
             ),
         )
         if response.candidates and response.candidates[0].finish_reason == "MAX_TOKENS":
-            print(f"[WARN] Gemini response hit max_output_tokens={max_tokens} and was truncated.")
+            logger.warning("Gemini response hit max_output_tokens=%d and was truncated.", max_tokens)
         return (response.text or "").strip()
 
     # ------------------------------------------------------------------
@@ -155,8 +159,8 @@ Rules: Never say "perfect". Never invent numbers. Tone: confident, data-grounded
         try:
             result = self._call(prompt, max_tokens=1024)
             return result if result else self._fallback_explanation(top_route, profile_name)
-        except Exception as e:
-            print(f"[WARN] explain_route failed: {e}")
+        except Exception:
+            logger.exception("explain_route failed for route=%s; using fallback explanation.", top_route.get("occupation_id"))
             return self._fallback_explanation(top_route, profile_name)
 
     def _fallback_explanation(self, top_route: Dict, profile_name: Optional[str]) -> str:
@@ -188,6 +192,7 @@ Rules: Never say "perfect". Never invent numbers. Tone: confident, data-grounded
         """
         skeleton = self._build_skeleton(skill_gaps, top_route)
         if not self.is_live:
+            logger.info("Gemini offline — returning deterministic roadmap skeleton (%d phases).", len(skeleton))
             return skeleton
         return self._enrich_skeleton(skeleton, top_route, profile_name)
 
@@ -301,8 +306,8 @@ One entry per phase above, in order, matched by "index"."""
                     description = entry.get("description")
                     if isinstance(idx, int) and 0 <= idx < len(skeleton) and isinstance(description, str) and description.strip():
                         skeleton[idx]["description"] = description.strip()
-        except Exception as e:
-            print(f"[WARN] Gemini roadmap enrichment failed: {e}")
+        except Exception:
+            logger.exception("Gemini roadmap enrichment failed for route=%s; keeping skeleton descriptions.", top_route.get("occupation_id"))
             # Keep skeleton descriptions as fallback
 
         return skeleton
@@ -362,8 +367,8 @@ summary. Tone: confident, data-grounded, direct mentor. No greeting, no sign-off
         try:
             result = self._call(prompt, max_tokens=768)
             return result if result else self._fallback_answer(question, route, profile_name)
-        except Exception as e:
-            print(f"[WARN] answer_question failed: {e}")
+        except Exception:
+            logger.exception("answer_question failed for route=%s; using fallback answer.", route.get("occupation_id"))
             return self._fallback_answer(question, route, profile_name)
 
     def _fallback_answer(self, question: str, route: Dict, profile_name: Optional[str]) -> str:
@@ -425,8 +430,8 @@ Return ONLY the JSON object."""
                 "target_direction": data.get("target_direction") or None,
                 "gemini_live": True,
             }
-        except Exception as e:
-            print(f"[WARN] extract_profile_from_text failed: {e}")
+        except Exception:
+            logger.exception("extract_profile_from_text failed; using offline fallback extraction.")
             return self._fallback_extract_profile(text)
 
     def _parse_json_object(self, raw: str) -> Optional[Dict[str, Any]]:
@@ -451,8 +456,8 @@ Return ONLY the JSON object."""
                 skill_name = skill.get("skill_name", "")
                 if skill_name and skill_name.lower() in normalized:
                     skills.append(skill_name)
-        except Exception as e:
-            print(f"[WARN] Offline skill matching failed: {e}")
+        except Exception:
+            logger.exception("Offline skill matching failed during profile extraction fallback.")
 
         years_match = re.search(r"(\d+(?:\.\d+)?)\s*\+?\s*years?", text, re.IGNORECASE)
         experience_years = float(years_match.group(1)) if years_match else None
@@ -497,6 +502,10 @@ Return ONLY the JSON object."""
         Full CRO output: explanation + 12-week roadmap.
         Called by POST /profile in main.py.
         """
+        logger.info(
+            "Generating CRO response for occupation_id=%s gemini_live=%s",
+            top_route.get("occupation_id"), self.is_live,
+        )
         explanation = self.explain_route(top_route, profile_name)
         roadmap = self.generate_roadmap(skill_gaps, top_route, profile_name)
 

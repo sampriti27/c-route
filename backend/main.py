@@ -4,6 +4,7 @@ FastAPI Application serving career route recommendations and Route Fit scoring.
 "Data decides. AI explains."
 """
 
+import logging
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -19,6 +20,9 @@ if str(BACKEND_DIR) not in sys.path:
 
 from scorer import RouteScorer, get_scorer
 from gemini_client import GeminiClient, get_gemini_client
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 # --------------------------------------------------------------------------
@@ -110,16 +114,16 @@ class ProfileResponse(BaseModel):
 # --------------------------------------------------------------------------
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("[INFO] Starting C.Route API server...")
+    logger.info("Starting C.Route API server...")
     scorer = get_scorer()
     gemini = get_gemini_client()
-    print(
-        f"[INFO] RouteScorer ready — {len(scorer.occupations)} occupations, "
-        f"{len(scorer.skills)} skills. Live BQ: {scorer.bq.is_live}"
+    logger.info(
+        "RouteScorer ready — %d occupations, %d skills. Live BQ: %s",
+        len(scorer.occupations), len(scorer.skills), scorer.bq.is_live,
     )
-    print(f"[INFO] GeminiClient ready — Live: {gemini.is_live}")
+    logger.info("GeminiClient ready — Live: %s", gemini.is_live)
     yield
-    print("[INFO] Shutting down C.Route API server.")
+    logger.info("Shutting down C.Route API server.")
 
 
 # --------------------------------------------------------------------------
@@ -164,6 +168,7 @@ async def health_check() -> HealthResponse:
             gemini_live=gemini.is_live,
         )
     except Exception as e:
+        logger.exception("Health check failed.")
         raise HTTPException(status_code=500, detail=f"Health check failed: {str(e)}")
 
 
@@ -175,6 +180,10 @@ async def score_profile_endpoint(payload: ProfileRequest) -> ProfileResponse:
             detail="At least one skill must be provided.",
         )
 
+    logger.info(
+        "POST /profile — name=%s skills=%d target=%s skip_cro=%s",
+        payload.name, len(payload.skills), payload.target, payload.skip_cro,
+    )
     try:
         scorer = get_scorer()
         gemini = get_gemini_client()
@@ -211,6 +220,7 @@ async def score_profile_endpoint(payload: ProfileRequest) -> ProfileResponse:
         )
 
     except Exception as e:
+        logger.exception("Error scoring profile for name=%s", payload.name)
         raise HTTPException(status_code=500, detail=f"Error scoring profile: {str(e)}")
 
 
@@ -250,6 +260,8 @@ async def extract_profile_endpoint(file: UploadFile = File(...)) -> ExtractProfi
     if not raw_bytes:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Uploaded file is empty.")
 
+    logger.info("POST /extract-profile — filename=%s size_bytes=%d", file.filename, len(raw_bytes))
+
     text = _extract_text_from_upload(file.filename, raw_bytes)
     if not text.strip():
         raise HTTPException(
@@ -264,12 +276,14 @@ async def extract_profile_endpoint(file: UploadFile = File(...)) -> ExtractProfi
     except HTTPException:
         raise
     except Exception as e:
+        logger.exception("Error extracting profile from filename=%s", file.filename)
         raise HTTPException(status_code=500, detail=f"Error extracting profile: {str(e)}")
 
 
 @app.post("/admin/reload", response_model=HealthResponse, tags=["System"])
 async def reload_market_data() -> HealthResponse:
     """Forces the RouteScorer singleton to reload occupations/skills/demand from BigQuery."""
+    logger.info("POST /admin/reload — forcing market data refresh.")
     try:
         scorer = get_scorer(force_refresh=True)
         gemini = get_gemini_client()
@@ -288,11 +302,13 @@ async def reload_market_data() -> HealthResponse:
             gemini_live=gemini.is_live,
         )
     except Exception as e:
+        logger.exception("Market data reload failed.")
         raise HTTPException(status_code=500, detail=f"Reload failed: {str(e)}")
 
 
 @app.post("/skill-gaps", response_model=List[Dict[str, Any]], tags=["Scoring"])
 async def skill_gaps_endpoint(payload: SkillGapsRequest) -> List[Dict[str, Any]]:
+    logger.info("POST /skill-gaps — occupation_id=%s skills=%d", payload.occupation_id, len(payload.skills))
     try:
         scorer = get_scorer()
         if payload.occupation_id not in scorer.occupations:
@@ -304,6 +320,7 @@ async def skill_gaps_endpoint(payload: SkillGapsRequest) -> List[Dict[str, Any]]
     except HTTPException:
         raise
     except Exception as e:
+        logger.exception("Error computing skill gaps for occupation_id=%s", payload.occupation_id)
         raise HTTPException(status_code=500, detail=f"Error computing skill gaps: {str(e)}")
 
 
@@ -315,6 +332,7 @@ async def ask_endpoint(payload: AskRequest) -> AskResponse:
             detail="question must not be empty.",
         )
 
+    logger.info("POST /ask — occupation_id=%s question_chars=%d", payload.occupation_id, len(payload.question))
     try:
         scorer = get_scorer()
         gemini = get_gemini_client()
@@ -334,6 +352,7 @@ async def ask_endpoint(payload: AskRequest) -> AskResponse:
     except HTTPException:
         raise
     except Exception as e:
+        logger.exception("Error answering question for occupation_id=%s", payload.occupation_id)
         raise HTTPException(status_code=500, detail=f"Error answering question: {str(e)}")
 
 

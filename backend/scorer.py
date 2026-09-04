@@ -12,6 +12,7 @@ Formula:
 "Data decides. AI explains."
 """
 
+import logging
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
@@ -19,6 +20,8 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from bq_client import BigQueryClient
+
+logger = logging.getLogger(__name__)
 
 # Standard Formula Weights
 WEIGHT_OVERLAP = 0.40
@@ -45,6 +48,7 @@ class RouteScorer:
 
     def _load_market_data(self):
         """Loads and indexes market intelligence from BigQuery."""
+        logger.info("Loading market data (live_bigquery=%s)...", self.bq.is_live)
         self.occupations = {o["occupation_id"]: o for o in self.bq.get_occupations()}
 
         self.skills = {s["skill_id"]: s for s in self.bq.get_skills()}
@@ -77,22 +81,35 @@ class RouteScorer:
             self.adjacency_graph[sa][sb] = max(self.adjacency_graph[sa].get(sb, 0.0), weight)
             self.adjacency_graph[sb][sa] = max(self.adjacency_graph[sb].get(sa, 0.0), weight)
 
+        logger.info(
+            "Market data loaded — %d occupations, %d skills, %d adjacency edges.",
+            len(self.occupations), len(self.skills), len(raw_edges),
+        )
+
     def reload(self):
         """Reloads and refreshes market data from BigQuery."""
+        logger.info("Reloading market data...")
         self._load_market_data()
 
     def _map_user_skills(self, user_skill_names: List[str]) -> Set[str]:
         """Maps free-text or snake_case user skill names to canonical skill_ids."""
         skill_ids = set()
+        unmapped: List[str] = []
         for name in user_skill_names:
             norm = normalize_name(name)
             if norm in self.skill_name_to_id:
                 skill_ids.add(self.skill_name_to_id[norm])
             else:
+                matched = False
                 for canonical_norm, s_id in self.skill_name_to_id.items():
                     if norm == canonical_norm or norm in canonical_norm or canonical_norm in norm:
                         skill_ids.add(s_id)
+                        matched = True
                         break
+                if not matched:
+                    unmapped.append(name)
+        if unmapped:
+            logger.debug("Could not map %d user skill(s) to the taxonomy: %s", len(unmapped), unmapped)
         return skill_ids
 
     def calculate_adjacency_score(
@@ -318,6 +335,13 @@ class RouteScorer:
             ranked_routes.append(score_card)
 
         ranked_routes.sort(key=lambda x: x["route_fit_score"], reverse=True)
+        top = ranked_routes[0] if ranked_routes else None
+        logger.info(
+            "Scored %d route(s) for %d input skill(s) — top=%s (%.4f)",
+            len(ranked_routes), len(current_skills),
+            top["occupation_id"] if top else "none",
+            top["route_fit_score"] if top else 0.0,
+        )
         return ranked_routes
 
 
