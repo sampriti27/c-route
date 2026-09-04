@@ -260,6 +260,9 @@ class BigQueryClient:
             {"occupation_id": "OCC003", "title": "Financial Analyst", "category": "finance", "geography": "India"},
             {"occupation_id": "OCC004", "title": "Product Manager", "category": "product", "geography": "India"},
             {"occupation_id": "OCC005", "title": "Marketing Analyst", "category": "marketing", "geography": "India"},
+            {"occupation_id": "OCC006", "title": "Software Engineer", "category": "engineering", "geography": "India"},
+            {"occupation_id": "OCC007", "title": "Operations Analyst", "category": "operations", "geography": "India"},
+            {"occupation_id": "OCC008", "title": "HR Analyst", "category": "hr", "geography": "India"},
         ]
 
     def _get_local_skills(self) -> List[Dict[str, Any]]:
@@ -274,6 +277,14 @@ class BigQueryClient:
             {"skill_id": "SKL008", "skill_name": "Tableau", "category": "technical"},
             {"skill_id": "SKL009", "skill_name": "Statistical Analysis", "category": "technical"},
             {"skill_id": "SKL010", "skill_name": "Product Thinking", "category": "domain"},
+            {"skill_id": "SKL011", "skill_name": "Git", "category": "technical"},
+            {"skill_id": "SKL012", "skill_name": "Data Structures & Algorithms", "category": "technical"},
+            {"skill_id": "SKL013", "skill_name": "System Design", "category": "technical"},
+            {"skill_id": "SKL014", "skill_name": "Process Improvement", "category": "domain"},
+            {"skill_id": "SKL015", "skill_name": "Project Management", "category": "domain"},
+            {"skill_id": "SKL016", "skill_name": "HRIS", "category": "technical"},
+            {"skill_id": "SKL017", "skill_name": "Recruiting", "category": "domain"},
+            {"skill_id": "SKL018", "skill_name": "Employee Relations", "category": "soft"},
         ]
 
     def _get_local_occupation_skills(self) -> List[Dict[str, Any]]:
@@ -311,6 +322,27 @@ class BigQueryClient:
             ("OCC005", "SKL002", 0.70),
             ("OCC005", "SKL003", 0.80),
             ("OCC005", "SKL005", 0.85),
+            # Software Engineer
+            ("OCC006", "SKL004", 0.95),
+            ("OCC006", "SKL001", 0.70),
+            ("OCC006", "SKL011", 0.85),
+            ("OCC006", "SKL012", 0.90),
+            ("OCC006", "SKL013", 0.75),
+            ("OCC006", "SKL005", 0.60),
+            # Operations Analyst
+            ("OCC007", "SKL001", 0.75),
+            ("OCC007", "SKL002", 0.85),
+            ("OCC007", "SKL009", 0.70),
+            ("OCC007", "SKL014", 0.90),
+            ("OCC007", "SKL015", 0.80),
+            ("OCC007", "SKL005", 0.65),
+            # HR Analyst
+            ("OCC008", "SKL002", 0.70),
+            ("OCC008", "SKL005", 0.85),
+            ("OCC008", "SKL007", 0.60),
+            ("OCC008", "SKL016", 0.85),
+            ("OCC008", "SKL017", 0.90),
+            ("OCC008", "SKL018", 0.80),
         ]
         return [
             {
@@ -331,6 +363,9 @@ class BigQueryClient:
             {"occupation_id": "OCC003", "title": "Financial Analyst", "category": "finance", "geography": "India", "total_demand": 565, "avg_demand_share": 0.8600},
             {"occupation_id": "OCC004", "title": "Product Manager", "category": "product", "geography": "India", "total_demand": 1100, "avg_demand_share": 0.8000},
             {"occupation_id": "OCC005", "title": "Marketing Analyst", "category": "marketing", "geography": "India", "total_demand": 820, "avg_demand_share": 0.7300},
+            {"occupation_id": "OCC006", "title": "Software Engineer", "category": "engineering", "geography": "India", "total_demand": 1080, "avg_demand_share": 0.8750},
+            {"occupation_id": "OCC007", "title": "Operations Analyst", "category": "operations", "geography": "India", "total_demand": 590, "avg_demand_share": 0.7900},
+            {"occupation_id": "OCC008", "title": "HR Analyst", "category": "hr", "geography": "India", "total_demand": 490, "avg_demand_share": 0.7500},
         ]
 
     def _get_local_demand_velocities(self) -> List[Dict[str, Any]]:
@@ -347,6 +382,12 @@ class BigQueryClient:
             {"occupation_id": "OCC005", "title": "Marketing Analyst", "skill_id": "SKL005", "skill_name": "Communication", "current_demand": 320, "prev_demand": 280, "velocity_pct": 14.29},
             {"occupation_id": "OCC005", "title": "Marketing Analyst", "skill_id": "SKL003", "skill_name": "Power BI", "current_demand": 240, "prev_demand": 200, "velocity_pct": 20.00},
             {"occupation_id": "OCC005", "title": "Marketing Analyst", "skill_id": "SKL002", "skill_name": "Excel", "current_demand": 260, "prev_demand": 220, "velocity_pct": 18.18},
+            {"occupation_id": "OCC006", "title": "Software Engineer", "skill_id": "SKL004", "skill_name": "Python", "current_demand": 580, "prev_demand": 460, "velocity_pct": 26.09},
+            {"occupation_id": "OCC006", "title": "Software Engineer", "skill_id": "SKL012", "skill_name": "Data Structures & Algorithms", "current_demand": 500, "prev_demand": 420, "velocity_pct": 19.05},
+            {"occupation_id": "OCC007", "title": "Operations Analyst", "skill_id": "SKL014", "skill_name": "Process Improvement", "current_demand": 310, "prev_demand": 260, "velocity_pct": 19.23},
+            {"occupation_id": "OCC007", "title": "Operations Analyst", "skill_id": "SKL002", "skill_name": "Excel", "current_demand": 280, "prev_demand": 240, "velocity_pct": 16.67},
+            {"occupation_id": "OCC008", "title": "HR Analyst", "skill_id": "SKL017", "skill_name": "Recruiting", "current_demand": 260, "prev_demand": 210, "velocity_pct": 23.81},
+            {"occupation_id": "OCC008", "title": "HR Analyst", "skill_id": "SKL016", "skill_name": "HRIS", "current_demand": 230, "prev_demand": 190, "velocity_pct": 21.05},
         ]
 
     def _get_local_skill_adjacency(self) -> List[Dict[str, Any]]:
@@ -356,6 +397,11 @@ class BigQueryClient:
             {"skill_a": "SKL001", "skill_a_name": "SQL", "skill_b": "SKL009", "skill_b_name": "Statistical Analysis", "cooccurrence": 0.76},
             {"skill_a": "SKL002", "skill_a_name": "Excel", "skill_b": "SKL006", "skill_b_name": "Finance Basics", "cooccurrence": 0.72},
             {"skill_a": "SKL003", "skill_a_name": "Power BI", "skill_b": "SKL008", "skill_b_name": "Tableau", "cooccurrence": 0.80},
+            {"skill_a": "SKL004", "skill_a_name": "Python", "skill_b": "SKL011", "skill_b_name": "Git", "cooccurrence": 0.82},
+            {"skill_a": "SKL001", "skill_a_name": "SQL", "skill_b": "SKL012", "skill_b_name": "Data Structures & Algorithms", "cooccurrence": 0.74},
+            {"skill_a": "SKL002", "skill_a_name": "Excel", "skill_b": "SKL014", "skill_b_name": "Process Improvement", "cooccurrence": 0.70},
+            {"skill_a": "SKL005", "skill_a_name": "Communication", "skill_b": "SKL018", "skill_b_name": "Employee Relations", "cooccurrence": 0.75},
+            {"skill_a": "SKL007", "skill_a_name": "PowerPoint", "skill_b": "SKL017", "skill_b_name": "Recruiting", "cooccurrence": 0.68},
         ]
 
     def _fallback_query(self, sql: str) -> List[Dict[str, Any]]:

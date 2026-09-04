@@ -199,6 +199,30 @@ async def score_profile_endpoint(payload: ProfileRequest) -> ProfileResponse:
         raise HTTPException(status_code=500, detail=f"Error scoring profile: {str(e)}")
 
 
+@app.post("/admin/reload", response_model=HealthResponse, tags=["System"])
+async def reload_market_data() -> HealthResponse:
+    """Forces the RouteScorer singleton to reload occupations/skills/demand from BigQuery."""
+    try:
+        scorer = get_scorer(force_refresh=True)
+        gemini = get_gemini_client()
+        return HealthResponse(
+            status="reloaded",
+            service="c-route-backend",
+            scorer_ready=scorer is not None,
+            occupations_count=len(scorer.occupations),
+            skills_count=len(scorer.skills),
+            data_source=(
+                f"BigQuery ({scorer.bq.project_id}.{scorer.bq.dataset_id})"
+                if scorer.bq.is_live
+                else "Offline Fallback (Seed Dataset)"
+            ),
+            live_bigquery=scorer.bq.is_live,
+            gemini_live=gemini.is_live,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Reload failed: {str(e)}")
+
+
 @app.post("/skill-gaps", response_model=List[Dict[str, Any]], tags=["Scoring"])
 async def skill_gaps_endpoint(payload: SkillGapsRequest) -> List[Dict[str, Any]]:
     try:

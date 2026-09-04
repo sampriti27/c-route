@@ -1,0 +1,12 @@
+{"occupation_id": "OCC006", "skill_id": "SKL004", "period": "2026", "demand_count": 580, "demand_share": 0.90, "source": "synthetic_v1"}
+{"occupation_id": "OCC006", "skill_id": "SKL004", "period": "2025", "demand_count": 460, "demand_share": 0.80, "source": "synthetic_v1"}
+{"occupation_id": "OCC006", "skill_id": "SKL012", "period": "2026", "demand_count": 500, "demand_share": 0.85, "source": "synthetic_v1"}
+{"occupation_id": "OCC006", "skill_id": "SKL012", "period": "2025", "demand_count": 420, "demand_share": 0.78, "source": "synthetic_v1"}
+{"occupation_id": "OCC007", "skill_id": "SKL014", "period": "2026", "demand_count": 310, "demand_share": 0.82, "source": "synthetic_v1"}
+{"occupation_id": "OCC007", "skill_id": "SKL014", "period": "2025", "demand_count": 260, "demand_share": 0.74, "source": "synthetic_v1"}
+{"occupation_id": "OCC007", "skill_id": "SKL002", "period": "2026", "demand_count": 280, "demand_share": 0.76, "source": "synthetic_v1"}
+{"occupation_id": "OCC007", "skill_id": "SKL002", "period": "2025", "demand_count": 240, "demand_share": 0.68, "source": "synthetic_v1"}
+{"occupation_id": "OCC008", "skill_id": "SKL017", "period": "2026", "demand_count": 260, "demand_share": 0.79, "source": "synthetic_v1"}
+{"occupation_id": "OCC008", "skill_id": "SKL017", "period": "2025", "demand_count": 210, "demand_share": 0.68, "source": "synthetic_v1"}
+{"occupation_id": "OCC008", "skill_id": "SKL016", "period": "2026", "demand_count": 230, "demand_share": 0.71, "source": "synthetic_v1"}
+{"occupation_id": "OCC008", "skill_id": "SKL016", "period": "2025", "demand_count": 190, "demand_share": 0.62, "source": "synthetic_v1"}

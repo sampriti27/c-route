@@ -27,14 +27,17 @@ class TestRouteScorer(unittest.TestCase):
 
     def test_market_data_loaded(self):
         """Verify that occupations, skills, demand scores, and velocities are loaded."""
-        self.assertEqual(len(self.scorer.occupations), 5)
-        self.assertEqual(len(self.scorer.skills), 10)
+        self.assertEqual(len(self.scorer.occupations), 8)
+        self.assertEqual(len(self.scorer.skills), 18)
         self.assertIn("OCC001", self.scorer.occupations)
         self.assertIn("OCC004", self.scorer.occupations)
         self.assertIn("OCC005", self.scorer.occupations)
+        self.assertIn("OCC006", self.scorer.occupations)
+        self.assertIn("OCC007", self.scorer.occupations)
+        self.assertIn("OCC008", self.scorer.occupations)
 
-    def test_aisha_all_5_occupations_scored(self):
-        """Verify Aisha's profile scores all 5 occupations in catalog."""
+    def test_aisha_all_8_occupations_scored(self):
+        """Verify Aisha's profile scores all 8 occupations in catalog."""
         aisha_skills = ["Excel", "Finance Basics", "Communication", "PowerPoint"]
         routes = self.scorer.score_profile(
             current_skills=aisha_skills,
@@ -42,15 +45,18 @@ class TestRouteScorer(unittest.TestCase):
             score_all=True,
         )
 
-        # All 5 occupations must be returned
-        self.assertEqual(len(routes), 5)
-        
+        # All 8 occupations must be returned
+        self.assertEqual(len(routes), 8)
+
         occ_titles = [r["title"] for r in routes]
         self.assertIn("Business Analyst", occ_titles)
         self.assertIn("Financial Analyst", occ_titles)
         self.assertIn("Product Manager", occ_titles)
         self.assertIn("Marketing Analyst", occ_titles)
         self.assertIn("Data Analyst", occ_titles)
+        self.assertIn("Software Engineer", occ_titles)
+        self.assertIn("Operations Analyst", occ_titles)
+        self.assertIn("HR Analyst", occ_titles)
 
         # Top route must be Business Analyst
         top_route = routes[0]
