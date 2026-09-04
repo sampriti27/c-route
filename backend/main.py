@@ -39,6 +39,10 @@ class ProfileRequest(BaseModel):
     name: Optional[str] = None
     education: Optional[str] = None
     experience_years: Optional[float] = None
+    # Set by the What-If simulator: it only needs the recomputed route_fit_score,
+    # not a fresh CRO explanation + roadmap. Skipping Gemini here avoids burning
+    # ~7 calls (1 explanation + up to 6 roadmap phases) on every skill toggle.
+    skip_cro: bool = False
 
     model_config = {
         "populate_by_name": True,
@@ -185,7 +189,7 @@ async def score_profile_endpoint(payload: ProfileRequest) -> ProfileResponse:
 
         # Step 2 — Skill gaps for top route (data decides order)
         cro_output = {}
-        if ranked_routes:
+        if ranked_routes and not payload.skip_cro:
             top_route = ranked_routes[0]
             top_occ_id = top_route.get("occupation_id", "")
             skill_gaps = scorer.compute_skill_gaps(payload.skills, top_occ_id)

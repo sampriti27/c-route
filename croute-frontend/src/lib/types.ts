@@ -9,6 +9,9 @@ export interface ProfileRequest {
   profile_id?: string;
   education?: string;
   experience_years?: number;
+  // Skip CRO explanation + roadmap generation server-side — used by the
+  // What-If simulator, which only needs the recomputed route_fit_score.
+  skip_cro?: boolean;
 }
 
 export interface RouteBreakdown {

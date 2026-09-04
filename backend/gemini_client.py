@@ -81,8 +81,17 @@ class GeminiClient:
     # ------------------------------------------------------------------
     # Internal: raw Gemini call
     # ------------------------------------------------------------------
-    def _call(self, prompt: str, max_tokens: int = 512) -> str:
-        """Single Gemini call at temperature=0 for consistency."""
+    def _call(self, prompt: str, max_tokens: int = 768) -> str:
+        """Single Gemini call at temperature=0 for consistency.
+
+        thinking_budget=0 disables the model's internal reasoning tokens —
+        without it, gemini-3.6-flash can spend the entire max_output_tokens
+        budget "thinking" before writing any visible answer, which was
+        cutting CRO's replies off mid-sentence (or mid-word) on every call.
+        These are short data-to-prose synthesis tasks; they don't need
+        chain-of-thought, and skipping it also cuts token cost against the
+        free-tier quota.
+        """
         if not self.is_live or not self.client:
             return ""
         response = self.client.models.generate_content(
@@ -91,9 +100,12 @@ class GeminiClient:
             config=types.GenerateContentConfig(
                 temperature=0.0,
                 max_output_tokens=max_tokens,
+                thinking_config=types.ThinkingConfig(thinking_budget=0),
             ),
         )
-        return response.text.strip()
+        if response.candidates and response.candidates[0].finish_reason == "MAX_TOKENS":
+            print(f"[WARN] Gemini response hit max_output_tokens={max_tokens} and was truncated.")
+        return (response.text or "").strip()
 
     # ------------------------------------------------------------------
     # Route Explanation
@@ -243,34 +255,55 @@ Rules: Never say "perfect". Never invent numbers. Tone: confident, data-grounded
         top_route: Dict[str, Any],
         profile_name: Optional[str],
     ) -> List[Dict[str, Any]]:
-        """Gemini writes 2-sentence description per phase. Falls back to skeleton on error."""
+        """
+        Gemini writes a 2-sentence description per roadmap phase — in ONE call
+        for the whole roadmap instead of one call per phase (was up to 6 calls
+        per profile analysis, burning the free-tier daily quota fast). Falls
+        back to the deterministic skeleton description per-phase on any
+        parse/call failure.
+        """
         title = top_route.get("title", "your target role")
         name = profile_name or "you"
 
-        for phase in skeleton:
+        phases_desc = []
+        for i, phase in enumerate(skeleton):
             skill = phase["focus_skill"]
             demand = phase.get("demand_score")
             weeks = phase["weeks"]
+            focus = (
+                f"consolidating {name}'s skills into a portfolio project for {title}"
+                if skill == "Integration & Portfolio"
+                else f"learning {skill}{f' (market demand score: {demand}%)' if demand is not None else ''} for {title}"
+            )
+            phases_desc.append(f'{i}. {weeks} — {focus}')
 
-            if skill == "Integration & Portfolio":
-                prompt = f"""You are CRO, the Career Route Oracle.
-Respond with 2 sentences only. First sentence: what to build. Second sentence: why it demonstrates readiness for {title}.
-Focus: consolidating {name}'s skills into a portfolio project for {title} during {weeks}.
-Be specific and encouraging. Do not mention salary or guarantees. Do not invent statistics."""
-            else:
-                prompt = f"""You are CRO, the Career Route Oracle.
-Respond with 2 sentences only. First sentence: what to learn. Second sentence: why it matters for {title}.
-Focus skill: {skill}{f' (market demand score: {demand}%)' if demand is not None else ''}.
-Explain what to learn and why it matters for {title}. Be specific and actionable.
-Do not mention salary or guarantees. Do not invent statistics."""
+        prompt = f"""You are CRO, the Career Route Oracle, writing a {len(skeleton)}-phase learning roadmap toward {title} for {name}.
 
-            try:
-                enriched = self._call(prompt, max_tokens=512)
-                if enriched:
-                    phase["description"] = enriched
-            except Exception as e:
-                print(f"[WARN] Gemini enrichment failed for {skill}: {e}")
-                # Keep skeleton description as fallback
+For EACH phase below, write exactly 2 sentences: first sentence what to do, second sentence why it matters for {title}.
+Be specific and actionable. Do not mention salary or guarantees. Do not invent statistics not given here.
+
+PHASES:
+{chr(10).join(phases_desc)}
+
+Return STRICT JSON only — no markdown fences, no commentary — as:
+{{"phases": [{{"index": 0, "description": "..."}}, {{"index": 1, "description": "..."}}, ...]}}
+One entry per phase above, in order, matched by "index"."""
+
+        try:
+            raw = self._call(prompt, max_tokens=1536)
+            data = self._parse_json_object(raw)
+            entries = data.get("phases") if data else None
+            if isinstance(entries, list):
+                for entry in entries:
+                    if not isinstance(entry, dict):
+                        continue
+                    idx = entry.get("index")
+                    description = entry.get("description")
+                    if isinstance(idx, int) and 0 <= idx < len(skeleton) and isinstance(description, str) and description.strip():
+                        skeleton[idx]["description"] = description.strip()
+        except Exception as e:
+            print(f"[WARN] Gemini roadmap enrichment failed: {e}")
+            # Keep skeleton descriptions as fallback
 
         return skeleton
 
@@ -297,11 +330,18 @@ Do not mention salary or guarantees. Do not invent statistics."""
         matched = route.get("matched_skills", [])
         missing = route.get("missing_skills", [])
         bd = route.get("breakdown", {})
+        top_adjacency_pair = bd.get("top_adjacency_pair")
 
         prompt = f"""You are CRO, the Career Route Oracle for C.Route — a data-driven career navigation system.
+The user is already mid-conversation with you in a chat panel.
 
-Answer the user's question in 2–4 sentences using ONLY the data provided below.
-DO NOT invent market statistics, salaries, or job counts not present in this data.
+Answer the user's QUESTION directly and specifically in 3–5 sentences, using ONLY the data provided below.
+DO NOT invent market statistics, salaries, job counts, or timelines not present in this data.
+DO NOT start with a greeting ("Hello {name}") — the conversation is already open, jump straight into the answer.
+DO NOT use vague filler like "several factors," "various skills," or "a combination of things" — name the
+exact skill(s) and number(s) from the data that answer the question.
+If the question asks about difficulty, effort, or realism of closing gaps, reason from GAP EFFORT and the
+number of MISSING SKILLS — do not just repeat the fit score.
 
 USER: {name}
 QUESTION: {question}
@@ -313,12 +353,14 @@ MISSING SKILLS: {', '.join(missing) if missing else 'None'}
 MARKET DEMAND: {round(bd.get('market_demand', 0) * 100, 1)}%
 SKILL OVERLAP: {round(bd.get('skill_overlap', 0) * 100, 1)}%
 DEMAND VELOCITY: {round(bd.get('demand_velocity', 0) * 100, 1)}% growth
-SKILL ADJACENCY: {round(bd.get('skill_adjacency', 0), 2)}
+SKILL ADJACENCY: {round(bd.get('skill_adjacency', 0), 2)}{f" (strongest pair: {top_adjacency_pair})" if top_adjacency_pair else ""}
+GAP EFFORT: {round(bd.get('gap_effort', 0), 2) if bd.get('gap_effort') is not None else 'Not available'}
 
-Rules: Never invent numbers not shown above. Tone: confident, data-grounded, warm mentor."""
+Rules: Never invent numbers not shown above. Answer the actual question asked — do not give a generic route
+summary. Tone: confident, data-grounded, direct mentor. No greeting, no sign-off."""
 
         try:
-            result = self._call(prompt, max_tokens=512)
+            result = self._call(prompt, max_tokens=768)
             return result if result else self._fallback_answer(question, route, profile_name)
         except Exception as e:
             print(f"[WARN] answer_question failed: {e}")

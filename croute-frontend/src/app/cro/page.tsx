@@ -67,6 +67,7 @@ export default function CroWhatIfPage() {
       skills: [...extractedSkills.map((s) => s.name), ...selectedSkills],
       candidate_destinations: [currentRoute.occupation_id],
       score_all: false,
+      skip_cro: true,
     })
       .then((result) => {
         if (cancelled) return;
