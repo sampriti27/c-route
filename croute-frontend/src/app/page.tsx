@@ -1,12 +1,15 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 
-const STAT_METRICS = [
-  { value: "25", label: "Occupations Mapped" },
-  { value: "35", label: "Skills Tracked" },
-  { value: "2", label: "Market Periods" },
-  { value: "5", label: "Scoring Factors" },
-];
+import { getHealth } from "@/lib/api";
+
+const FALLBACK_STATS = {
+  occupations: "25",
+  skills: "35",
+};
 
 const FLOW_STEPS = [
   "Profile",
@@ -19,6 +22,32 @@ const FLOW_STEPS = [
 ];
 
 export default function LandingPage() {
+  const [occupationsCount, setOccupationsCount] = useState(FALLBACK_STATS.occupations);
+  const [skillsCount, setSkillsCount] = useState(FALLBACK_STATS.skills);
+
+  useEffect(() => {
+    let cancelled = false;
+    getHealth()
+      .then((health) => {
+        if (cancelled) return;
+        setOccupationsCount(String(health.occupations_count));
+        setSkillsCount(String(health.skills_count));
+      })
+      .catch(() => {
+        // Keep the static fallback values if the backend isn't reachable.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const statMetrics = [
+    { value: occupationsCount, label: "Occupations Mapped" },
+    { value: skillsCount, label: "Skills Tracked" },
+    { value: "2", label: "Market Periods" },
+    { value: "5", label: "Scoring Factors" },
+  ];
+
   return (
     <div className="relative min-h-[calc(100vh-5rem)] w-full flex flex-col items-center justify-center bg-grid-dots bg-radial-glow py-20 md:py-28 page-shell overflow-x-hidden">
       {/* Ambient background blur glows */}
@@ -49,7 +78,7 @@ export default function LandingPage() {
 
         {/* 4 Stat Metric Cards */}
         <div className="mt-10 md:mt-12 grid w-full max-w-3xl grid-cols-2 gap-5 sm:grid-cols-4 sm:gap-6">
-          {STAT_METRICS.map((stat) => (
+          {statMetrics.map((stat) => (
             <div
               key={stat.label}
               className="group flex flex-col items-center justify-center rounded-2xl border border-[#1b2844] bg-[#0c1322]/90 px-5 py-5 backdrop-blur transition-all duration-200 hover:border-emerald-500/50 hover:bg-[#0f182c] shadow-lg"
