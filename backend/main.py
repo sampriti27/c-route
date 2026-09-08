@@ -20,6 +20,7 @@ if str(BACKEND_DIR) not in sys.path:
 
 from scorer import RouteScorer, get_scorer
 from gemini_client import GeminiClient, get_gemini_client
+from agents import CRouteOrchestrator
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -188,35 +189,24 @@ async def score_profile_endpoint(payload: ProfileRequest) -> ProfileResponse:
         scorer = get_scorer()
         gemini = get_gemini_client()
 
-        # Step 1 — Deterministic scoring (data decides)
-        ranked_routes = scorer.score_profile(
+        orchestrator = CRouteOrchestrator(scorer=scorer, gemini_client=gemini)
+        result = orchestrator.run(
             current_skills=payload.skills,
             candidate_destinations=payload.candidate_destinations,
             target_direction=payload.target,
             score_all=payload.score_all,
+            profile_name=payload.name,
+            skip_cro=payload.skip_cro,
         )
 
-        # Step 2 — Skill gaps for top route (data decides order)
-        cro_output = {}
-        if ranked_routes and not payload.skip_cro:
-            top_route = ranked_routes[0]
-            top_occ_id = top_route.get("occupation_id", "")
-            skill_gaps = scorer.compute_skill_gaps(payload.skills, top_occ_id)
-
-            # Step 3 — Gemini explains (AI explains)
-            cro_output = gemini.generate_cro_response(
-                top_route=top_route,
-                skill_gaps=skill_gaps,
-                profile_name=payload.name,
-            )
-
+        ranked_routes = result.pop("routes", [])
         return ProfileResponse(
             status="success",
             profile_name=payload.name,
             target_direction=payload.target,
             total_routes=len(ranked_routes),
             routes=ranked_routes,
-            **cro_output,
+            **result,
         )
 
     except Exception as e:
@@ -354,6 +344,69 @@ async def ask_endpoint(payload: AskRequest) -> AskResponse:
     except Exception as e:
         logger.exception("Error answering question for occupation_id=%s", payload.occupation_id)
         raise HTTPException(status_code=500, detail=f"Error answering question: {str(e)}")
+
+
+class WhatIfRequest(BaseModel):
+    skills: List[str] = Field(default_factory=list)
+    whatif_occupation: str
+    name: Optional[str] = None
+
+    model_config = {"extra": "ignore"}
+
+
+class WhatIfResponse(BaseModel):
+    status: str = "success"
+    whatif_route: Dict[str, Any]
+    skill_gaps: List[Dict[str, Any]]
+    live_bigquery: bool
+
+
+@app.post("/whatif", response_model=WhatIfResponse, tags=["Scoring"])
+async def whatif_endpoint(payload: WhatIfRequest) -> WhatIfResponse:
+    """
+    What-if scenario: score a user-specified occupation and return the Route Fit
+    comparison + skill gaps. No Gemini call — fast deterministic response.
+    """
+    if not payload.skills:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="At least one skill must be provided.",
+        )
+    if not payload.whatif_occupation.strip():
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="whatif_occupation must not be empty.",
+        )
+
+    logger.info(
+        "POST /whatif — occupation=%s skills=%d",
+        payload.whatif_occupation,
+        len(payload.skills),
+    )
+    try:
+        scorer = get_scorer()
+        gemini = get_gemini_client()
+        orchestrator = CRouteOrchestrator(scorer=scorer, gemini_client=gemini)
+        result = orchestrator.whatif(
+            current_skills=payload.skills,
+            whatif_occupation=payload.whatif_occupation,
+            profile_name=payload.name,
+        )
+
+        if "error" in result:
+            raise HTTPException(status_code=404, detail=result["error"])
+
+        return WhatIfResponse(
+            status="success",
+            whatif_route=result["whatif_route"],
+            skill_gaps=result["skill_gaps"],
+            live_bigquery=result["live_bigquery"],
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Error in what-if for occupation=%s", payload.whatif_occupation)
+        raise HTTPException(status_code=500, detail=f"What-if error: {str(e)}")
 
 
 if __name__ == "__main__":
