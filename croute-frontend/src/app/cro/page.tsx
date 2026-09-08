@@ -5,8 +5,9 @@ import Link from "next/link";
 import { AlertCircle, Bot, Check, Compass, Loader2, Plus, Send, Sparkles } from "lucide-react";
 
 import { useAppStore } from "@/lib/store";
-import { askCro, postProfile, ApiError } from "@/lib/api";
+import { askCro, postProfile, postWhatIf, ApiError } from "@/lib/api";
 import { CircularGauge } from "@/components/ui/circular-gauge";
+import type { WhatIfResponse } from "@/lib/types";
 
 const PRESET_QUESTIONS = [
   "Which single skill gives me the biggest Route Fit boost?",
@@ -33,6 +34,11 @@ export default function CroWhatIfPage() {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
+
+  const [whatifOccupation, setWhatifOccupation] = useState("");
+  const [whatifLoading, setWhatifLoading] = useState(false);
+  const [whatifError, setWhatifError] = useState<string | null>(null);
+  const [whatifResult, setWhatifResult] = useState<WhatIfResponse | null>(null);
 
   const baseScore = currentRoute
     ? currentRoute.route_fit_score > 1
@@ -99,6 +105,27 @@ export default function CroWhatIfPage() {
     );
   }
 
+  async function handleRunWhatIf() {
+    if (!whatifOccupation.trim() || !currentRoute) return;
+
+    setWhatifLoading(true);
+    setWhatifError(null);
+    setWhatifResult(null);
+
+    try {
+      const result = await postWhatIf({
+        skills: extractedSkills.map((s) => s.name),
+        whatif_occupation: whatifOccupation,
+        name: effectiveResult?.profile_name ?? undefined,
+      });
+      setWhatifResult(result);
+    } catch (err) {
+      setWhatifError(err instanceof ApiError ? err.message : "Failed to run what-if scenario.");
+    } finally {
+      setWhatifLoading(false);
+    }
+  }
+
   async function handleSendChat(customText?: string) {
     const textToSend = customText || chatInput;
     if (!textToSend.trim() || !currentRoute) return;
@@ -150,6 +177,13 @@ export default function CroWhatIfPage() {
   const displayScore = simulatedScore ?? baseScore;
   const scoreDelta = (displayScore - baseScore).toFixed(1);
   const candidateSkills = currentRoute.missing_skills;
+
+  const whatifScore = whatifResult
+    ? whatifResult.whatif_route.route_fit_score > 1
+      ? whatifResult.whatif_route.route_fit_score
+      : whatifResult.whatif_route.route_fit_score * 100
+    : 0;
+  const whatifDelta = (whatifScore - baseScore).toFixed(1);
 
   return (
     <div className="relative min-h-[calc(100vh-5rem)] w-full page-section page-shell bg-radial-subtle">
@@ -280,6 +314,140 @@ export default function CroWhatIfPage() {
                       </div>
                     );
                   })}
+                </div>
+              )}
+            </div>
+
+            {/* What-If: Explore a Different Occupation */}
+            <div className="rounded-2xl border border-[#1b2844] bg-[#0c1322] p-7 sm:p-8 lg:p-9 shadow-xl">
+              <div className="pb-5 border-b border-[#1b2844]">
+                <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                  WHAT-IF: EXPLORE A DIFFERENT OCCUPATION
+                </h2>
+                <p className="text-xs text-slate-500 mt-1">
+                  Type an occupation to see your Route Fit score for it, compared against {currentRoute.title}.
+                </p>
+              </div>
+
+              <div className="mt-5 flex items-center gap-2.5">
+                <input
+                  type="text"
+                  value={whatifOccupation}
+                  onChange={(e) => setWhatifOccupation(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleRunWhatIf();
+                    }
+                  }}
+                  placeholder="e.g. Data Analyst"
+                  disabled={whatifLoading}
+                  className="flex-1 rounded-xl border border-[#1b2844] bg-[#070b14] px-4 py-3 text-xs sm:text-sm text-white placeholder:text-slate-500 focus:border-emerald-500 focus:outline-none disabled:opacity-50"
+                />
+                <button
+                  type="button"
+                  onClick={handleRunWhatIf}
+                  disabled={whatifLoading || !whatifOccupation.trim()}
+                  className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-5 py-3 text-xs sm:text-sm font-bold text-slate-950 hover:bg-emerald-400 transition-colors disabled:opacity-50 shrink-0"
+                >
+                  {whatifLoading ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
+                  Run What-if
+                </button>
+              </div>
+
+              {whatifError && (
+                <p className="mt-3 flex items-center gap-1.5 text-xs text-red-400">
+                  <AlertCircle className="size-3.5" /> {whatifError}
+                </p>
+              )}
+
+              {whatifResult && (
+                <div className="mt-6 flex flex-col gap-5">
+                  <div>
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                      {whatifResult.whatif_route.title.toUpperCase()}
+                    </span>
+                    <div className="mt-2 flex items-baseline gap-3">
+                      <span className="font-display text-3xl sm:text-4xl font-black text-white">
+                        {whatifScore.toFixed(2)}%
+                      </span>
+                      <span
+                        className={`rounded-full border px-3 py-1 text-xs sm:text-sm font-bold ${
+                          Number(whatifDelta) >= 0
+                            ? "border-emerald-500/40 bg-emerald-500/20 text-emerald-400"
+                            : "border-red-500/40 bg-red-500/20 text-red-400"
+                        }`}
+                      >
+                        {Number(whatifDelta) >= 0 ? "↑" : "↓"} {Math.abs(Number(whatifDelta)).toFixed(1)}% vs your best route
+                      </span>
+                    </div>
+                    <p className="mt-2 text-xs text-slate-400">
+                      Your best route ({currentRoute.title}): <span className="text-slate-300 font-semibold">{baseScore.toFixed(1)}%</span>
+                    </p>
+                  </div>
+
+                  <div>
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block mb-2">
+                      Matched skills
+                    </span>
+                    <div className="flex flex-wrap gap-2">
+                      {whatifResult.whatif_route.matched_skills.length === 0 ? (
+                        <span className="text-xs text-slate-500">None</span>
+                      ) : (
+                        whatifResult.whatif_route.matched_skills.map((s) => (
+                          <span
+                            key={s}
+                            className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-400"
+                          >
+                            {s}
+                          </span>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block mb-2">
+                      Missing skills
+                    </span>
+                    <div className="flex flex-wrap gap-2">
+                      {whatifResult.whatif_route.missing_skills.length === 0 ? (
+                        <span className="text-xs text-slate-500">None — full coverage</span>
+                      ) : (
+                        whatifResult.whatif_route.missing_skills.map((s) => (
+                          <span
+                            key={s}
+                            className="rounded-full border border-red-500/40 bg-red-500/10 px-3 py-1 text-xs font-semibold text-red-400"
+                          >
+                            {s}
+                          </span>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  {whatifResult.skill_gaps.length > 0 && (
+                    <div>
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block mb-2">
+                        Skill gaps to close (ranked by demand)
+                      </span>
+                      <div className="flex flex-col gap-2">
+                        {whatifResult.skill_gaps.map((gap, i) => (
+                          <div
+                            key={gap.skill_id}
+                            className="flex items-center justify-between rounded-lg border border-[#1b2844] bg-[#08121f] px-3.5 py-2.5"
+                          >
+                            <span className="text-xs sm:text-sm font-semibold text-slate-200">
+                              {i + 1}. {gap.skill_name}
+                            </span>
+                            <span className="text-[11px] font-bold text-slate-400">
+                              demand {gap.demand_score.toFixed(1)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

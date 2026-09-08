@@ -26,7 +26,7 @@ except ImportError:
 # --------------------------------------------------------------------------
 # Constants
 # --------------------------------------------------------------------------
-MODEL_ID = "gemini-3.6-flash"  # Update if project board changes
+MODEL_ID = "gemini-flash-latest"  # Update if project board changes
 
 # Static platform suggestions per skill category (Phase 2: replace with real course API)
 RESOURCE_PLATFORMS: Dict[str, List[str]] = {
@@ -87,13 +87,12 @@ class GeminiClient:
     def _call(self, prompt: str, max_tokens: int = 768) -> str:
         """Single Gemini call at temperature=0 for consistency.
 
-        thinking_budget=0 disables the model's internal reasoning tokens —
-        without it, gemini-3.6-flash can spend the entire max_output_tokens
-        budget "thinking" before writing any visible answer, which was
-        cutting CRO's replies off mid-sentence (or mid-word) on every call.
-        These are short data-to-prose synthesis tasks; they don't need
-        chain-of-thought, and skipping it also cuts token cost against the
-        free-tier quota.
+        thinking_budget is capped at 1 (the minimum gemini-3.6-flash accepts —
+        0 is rejected outright with a 400 INVALID_ARGUMENT, which was silently
+        swallowed by the except-and-fallback in every caller, so CRO looked
+        "alive" but was actually serving the same hardcoded template answer
+        for every question). A budget of 1 still keeps reasoning tokens near
+        zero for these short data-to-prose synthesis tasks.
         """
         if not self.is_live or not self.client:
             return ""
@@ -104,7 +103,7 @@ class GeminiClient:
             config=types.GenerateContentConfig(
                 temperature=0.0,
                 max_output_tokens=max_tokens,
-                thinking_config=types.ThinkingConfig(thinking_budget=0),
+                thinking_config=types.ThinkingConfig(thinking_budget=1),
             ),
         )
         if response.candidates and response.candidates[0].finish_reason == "MAX_TOKENS":

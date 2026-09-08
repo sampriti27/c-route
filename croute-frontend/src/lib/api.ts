@@ -8,6 +8,8 @@ import type {
   ProfileRequest,
   ProfileResponse,
   SkillGap,
+  WhatIfRequest,
+  WhatIfResponse,
 } from "./types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -100,6 +102,15 @@ export async function getSkillGaps(
 export async function askCro(payload: AskRequest): Promise<AskResponse> {
   try {
     const { data } = await client.post<AskResponse>("/ask", payload);
+    return data;
+  } catch (error) {
+    throw toApiError(error);
+  }
+}
+
+export async function postWhatIf(payload: WhatIfRequest): Promise<WhatIfResponse> {
+  try {
+    const { data } = await client.post<WhatIfResponse>("/whatif", payload);
     return data;
   } catch (error) {
     throw toApiError(error);

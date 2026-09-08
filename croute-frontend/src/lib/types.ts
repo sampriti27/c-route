@@ -83,6 +83,19 @@ export interface AskResponse {
   answer: string;
 }
 
+export interface WhatIfRequest {
+  skills: string[];
+  whatif_occupation: string;
+  name?: string;
+}
+
+export interface WhatIfResponse {
+  status: string;
+  whatif_route: Route;
+  skill_gaps: SkillGap[];
+  live_bigquery: boolean;
+}
+
 export interface ProfileResponse {
   status: string;
   profile_name?: string | null;
