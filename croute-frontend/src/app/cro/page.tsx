@@ -293,19 +293,17 @@ export default function CroWhatIfPage() {
                       <div
                         key={skillName}
                         onClick={() => toggleSkill(skillName)}
-                        className={`flex items-center justify-between rounded-xl border p-4 transition-all cursor-pointer shadow-md ${
-                          isSelected
+                        className={`flex items-center justify-between rounded-xl border p-4 transition-all cursor-pointer shadow-md ${isSelected
                             ? "border-emerald-500 bg-[#082215] text-white shadow-[0_0_20px_-3px_rgba(34,197,94,0.3)]"
                             : "border-[#1b2844] bg-[#08121f] text-slate-300 hover:border-slate-700 hover:bg-[#0a1829]"
-                        }`}
+                          }`}
                       >
                         <div className="flex items-center gap-3">
                           <div
-                            className={`flex size-6 items-center justify-center rounded-lg text-xs font-bold ${
-                              isSelected
+                            className={`flex size-6 items-center justify-center rounded-lg text-xs font-bold ${isSelected
                                 ? "bg-emerald-500 text-slate-950"
                                 : "bg-[#162238] text-slate-400"
-                            }`}
+                              }`}
                           >
                             {isSelected ? <Check className="size-3.5 stroke-[3]" /> : <Plus className="size-3.5" />}
                           </div>
@@ -351,7 +349,7 @@ export default function CroWhatIfPage() {
                   className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-5 py-3 text-xs sm:text-sm font-bold text-slate-950 hover:bg-emerald-400 transition-colors disabled:opacity-50 shrink-0"
                 >
                   {whatifLoading ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
-                  Run What-if
+                  Reroute
                 </button>
               </div>
 
@@ -372,11 +370,10 @@ export default function CroWhatIfPage() {
                         {whatifScore.toFixed(2)}%
                       </span>
                       <span
-                        className={`rounded-full border px-3 py-1 text-xs sm:text-sm font-bold ${
-                          Number(whatifDelta) >= 0
+                        className={`rounded-full border px-3 py-1 text-xs sm:text-sm font-bold ${Number(whatifDelta) >= 0
                             ? "border-emerald-500/40 bg-emerald-500/20 text-emerald-400"
                             : "border-red-500/40 bg-red-500/20 text-red-400"
-                        }`}
+                          }`}
                       >
                         {Number(whatifDelta) >= 0 ? "↑" : "↓"} {Math.abs(Number(whatifDelta)).toFixed(1)}% vs your best route
                       </span>
@@ -473,11 +470,10 @@ export default function CroWhatIfPage() {
               {chatMessages.map((msg, i) => (
                 <div
                   key={i}
-                  className={`flex flex-col rounded-xl p-3.5 text-xs sm:text-sm leading-relaxed ${
-                    msg.sender === "cro"
+                  className={`flex flex-col rounded-xl p-3.5 text-xs sm:text-sm leading-relaxed ${msg.sender === "cro"
                       ? "border border-emerald-500/30 bg-[#081a13] text-slate-200"
                       : "border border-[#1b2844] bg-[#111b2e] text-white self-end max-w-[90%]"
-                  }`}
+                    }`}
                 >
                   {msg.sender === "cro" && (
                     <span className="text-[11px] font-bold text-emerald-400 mb-1.5 flex items-center gap-1.5">
